@@ -1,0 +1,37 @@
+# Root level
+node_modules/
+package-lock.json
+scratch-test.js
+test_cari_hesaplar.xlsx
+test_cari_hesaplar_valid.xlsx
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.development
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/.env.local
+
+# Marketing
+marketing/node_modules/
+marketing/dist/
+marketing/.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
