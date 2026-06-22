@@ -23,6 +23,33 @@ export class RollsService {
       throw new ConflictException(`Barkod numarası '${rollData.barcodeNumber}' zaten kullanımda.`);
     }
 
+    // Renk çözme mantığı (Dinamik Renk Kartelası Eşleştirmesi)
+    let finalColor = rollData.color;
+    try {
+      const fabricCard = await this.prisma.fabricCard.findUnique({
+        where: {
+          fabricType_tenantId: {
+            fabricType: rollData.fabricType.trim(),
+            tenantId,
+          },
+        },
+      });
+
+      if (fabricCard && fabricCard.colorMapping) {
+        const mapping = fabricCard.colorMapping as Record<string, string>;
+        const trimmedColor = rollData.color.trim();
+        if (mapping[trimmedColor]) {
+          finalColor = `Renk ${trimmedColor} - ${mapping[trimmedColor]}`;
+        } else if (/^\d+$/.test(trimmedColor)) {
+          finalColor = `Renk ${trimmedColor}`;
+        }
+      } else if (/^\d+$/.test(rollData.color.trim())) {
+        finalColor = `Renk ${rollData.color.trim()}`;
+      }
+    } catch (err) {
+      console.error('Error resolving fabric card color mapping:', err);
+    }
+
     const hasRecipe = !!(warpYarnId && weftYarnId && warpKg !== undefined && weftKg !== undefined);
 
     let warpYarn = null;
@@ -60,6 +87,7 @@ export class RollsService {
       const roll = await tx.roll.create({
         data: {
           ...rollData,
+          color: finalColor,
           costPrice,
           tenantId,
           ...(hasRecipe && {
@@ -107,6 +135,7 @@ export class RollsService {
       search?: string;
       status?: string;
       quality?: string;
+      includeRecipe?: boolean;
     },
     tenantId: string,
   ) {
@@ -127,20 +156,24 @@ export class RollsService {
       ];
     }
 
+    const includeRecipeOpt = params.includeRecipe === true || params.includeRecipe === ('true' as any);
+
     const [data, total] = await Promise.all([
       this.prisma.roll.findMany({
         where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
-          productionRecipe: {
-            include: {
-              warpYarn: true,
-              weftYarn: true,
+        ...(includeRecipeOpt && {
+          include: {
+            productionRecipe: {
+              include: {
+                warpYarn: true,
+                weftYarn: true,
+              },
             },
           },
-        },
+        }),
       }),
       this.prisma.roll.count({ where }),
     ]);

@@ -1,5 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './components/MainLayout';
+import ProtectedRoute from './components/ProtectedRoute';
+import { AuthProvider } from './contexts/AuthContext';
+import './App.css';
+
+// Statik importlar ile tüm sayfaları baştan yüklüyoruz (Sayfa geçişleri anında gerçekleşir)
 import Dashboard from './pages/Dashboard';
 import Accounts from './pages/Accounts';
 import YarnStocks from './pages/YarnStocks';
@@ -8,9 +13,8 @@ import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
 import Finance from './pages/Finance';
 import Login from './pages/Login';
-import ProtectedRoute from './components/ProtectedRoute';
-import { AuthProvider } from './contexts/AuthContext';
-import './App.css';
+import Onboarding from './pages/Onboarding';
+
 
 function App() {
   return (
@@ -22,6 +26,7 @@ function App() {
 
           {/* Protected App Routes */}
           <Route element={<ProtectedRoute />}>
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/" element={<MainLayout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />

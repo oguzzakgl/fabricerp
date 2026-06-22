@@ -119,22 +119,22 @@ const Dashboard: React.FC = () => {
   return (
     <div>
       {/* DASHBOARD HEADER */}
-      <div className="mb-6 flex justify-between items-end">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h2 className="text-ust-baslik-md font-ust-baslik-md text-on-surface font-bold">Üretim Dashboard</h2>
           <p className="text-govde-metin text-on-surface-variant">Hoş geldiniz, fabrikadaki son durum özetini aşağıda görebilirsiniz.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-row gap-2 w-full sm:w-auto">
           <button 
             onClick={handleExportReport}
-            className="px-4 py-2 bg-surface-container-lowest border border-outline-variant text-govde-metin font-semibold rounded-lg hover:bg-surface-container-low transition-colors flex items-center gap-2"
+            className="flex-1 sm:flex-none px-4 py-2 bg-surface-container-lowest border border-outline-variant text-govde-metin font-semibold rounded-lg hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2"
           >
             <span className="material-symbols-outlined text-sm">download</span>
             Rapor Dışa Aktar
           </button>
           <button 
             onClick={() => navigate('/orders')}
-            className="px-4 py-2 bg-bilgi-mavisi text-white text-govde-metin font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
+            className="flex-1 sm:flex-none px-4 py-2 bg-bilgi-mavisi text-white text-govde-metin font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
             <span className="material-symbols-outlined text-sm">add</span>
             Yeni Sipariş
@@ -143,7 +143,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* METRIC CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-kenar-payi mb-kenar-payi">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-kenar-payi mb-kenar-payi">
         {/* Total Cari Accounts */}
         <div className="bg-surface-container-lowest p-standart-padding rounded-lg border border-outline-variant shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-2">
@@ -202,41 +202,43 @@ const Dashboard: React.FC = () => {
       {/* BENTO GRID CONTENT */}
       <div className="grid grid-cols-12 gap-kenar-payi mb-6">
         {/* INCOME/EXPENSE CHART (65%) */}
-        <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest p-kenar-payi rounded-lg border border-outline-variant shadow-sm">
-          <div className="flex justify-between items-center mb-6">
+        <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest p-4 sm:p-kenar-payi rounded-lg border border-outline-variant shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-6">
             <h4 className="text-alt-baslik font-alt-baslik text-on-surface font-bold">Gelir & Gider Analizi (Son 6 Ay)</h4>
-            <span className="text-kucuk-not text-on-surface-variant bg-surface-container-low px-3 py-1 rounded border border-outline-variant">
+            <span className="self-start sm:self-auto text-kucuk-not text-on-surface-variant bg-surface-container-low px-3 py-1 rounded border border-outline-variant">
               Anlık Finansal Grafik
             </span>
           </div>
-          <div className="h-64 flex items-end justify-between gap-4 px-4 border-b border-outline-variant pb-2">
-            {chartData.length === 0 ? (
-              <div className="w-full text-center text-on-surface-variant py-8">Grafik verisi bulunmamaktadır.</div>
-            ) : (
-              chartData.map((bar, i) => {
-                const incHeight = `${(bar.income / maxVal) * 100}%`;
-                const expHeight = `${(bar.expense / maxVal) * 100}%`;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
-                    <div className="w-full flex gap-1.5 items-end h-full relative">
-                      <div 
-                        title={`Gelir: ₺${bar.income.toFixed(2)}`} 
-                        className="flex-1 bg-bilgi-mavisi/80 rounded-t-sm hover:bg-bilgi-mavisi transition-all cursor-pointer min-h-[4px]" 
-                        style={{ height: incHeight }}
-                      ></div>
-                      <div 
-                        title={`Gider: ₺${bar.expense.toFixed(2)}`} 
-                        className="flex-1 bg-hata-kirmizisi/80 rounded-t-sm hover:bg-hata-kirmizisi transition-all cursor-pointer min-h-[4px]" 
-                        style={{ height: expHeight }}
-                      ></div>
+          <div className="overflow-x-auto pb-2">
+            <div className="h-64 flex items-end justify-between gap-4 px-4 border-b border-outline-variant pb-2 min-w-[500px] lg:min-w-0">
+              {chartData.length === 0 ? (
+                <div className="w-full text-center text-on-surface-variant py-8">Grafik verisi bulunmamaktadır.</div>
+              ) : (
+                chartData.map((bar, i) => {
+                  const incHeight = `${(bar.income / maxVal) * 100}%`;
+                  const expHeight = `${(bar.expense / maxVal) * 100}%`;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
+                      <div className="w-full flex gap-1.5 items-end h-full relative">
+                        <div 
+                          title={`Gelir: ₺${bar.income.toFixed(2)}`} 
+                          className="flex-1 bg-bilgi-mavisi/80 rounded-t-sm hover:bg-bilgi-mavisi transition-all cursor-pointer min-h-[4px]" 
+                          style={{ height: incHeight }}
+                        ></div>
+                        <div 
+                          title={`Gider: ₺${bar.expense.toFixed(2)}`} 
+                          className="flex-1 bg-hata-kirmizisi/80 rounded-t-sm hover:bg-hata-kirmizisi transition-all cursor-pointer min-h-[4px]" 
+                          style={{ height: expHeight }}
+                        ></div>
+                      </div>
+                      <span className="text-kucuk-not text-on-surface-variant font-semibold mt-1">{bar.month}</span>
                     </div>
-                    <span className="text-kucuk-not text-on-surface-variant font-semibold mt-1">{bar.month}</span>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
-          <div className="flex justify-center gap-8 mt-6">
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 mt-6">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-bilgi-mavisi rounded-full"></div>
               <span className="text-kucuk-not font-semibold text-on-surface">Satış Geliri (Faturalar)</span>
@@ -249,7 +251,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* CRITICAL STOCK LIST (35%) */}
-        <div className="col-span-12 lg:col-span-4 bg-surface-container-lowest p-kenar-payi rounded-lg border border-outline-variant shadow-sm flex flex-col">
+        <div className="col-span-12 lg:col-span-4 bg-surface-container-lowest p-4 sm:p-kenar-payi rounded-lg border border-outline-variant shadow-sm flex flex-col">
           <div className="flex justify-between items-center mb-4">
             <h4 className="text-alt-baslik font-alt-baslik text-on-surface font-bold">Kritik Stoklar (&lt; 100kg)</h4>
             <button className="text-bilgi-mavisi text-kucuk-not font-semibold hover:underline" onClick={() => navigate('/yarn-stocks')}>Tümünü Gör</button>
@@ -293,7 +295,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* ALERTS TABLE: URGENT CHEQUES */}
-      <div className="col-span-12 bg-surface-container-lowest p-kenar-payi rounded-lg border border-outline-variant shadow-sm">
+      <div className="col-span-12 bg-surface-container-lowest p-4 sm:p-kenar-payi rounded-lg border border-outline-variant shadow-sm">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-uyari-kehribar/10 flex items-center justify-center text-uyari-kehribar">

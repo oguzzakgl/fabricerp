@@ -156,7 +156,7 @@ const Finance: React.FC = () => {
   const fetchDocuments = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/finance', { params: { limit: 1000 } });
+      const response = await apiClient.get('/finance', { params: { limit: 100 } });
       const mapped = response.data.data.map(mapBackendToFrontendDoc);
       setDocuments(mapped);
       return response.data.data.length;

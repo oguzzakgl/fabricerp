@@ -71,14 +71,14 @@ const YarnStocks: React.FC = () => {
       setData(response.data.data);
       setTotal(response.data.total);
 
-      // Fetch all stocks for statistics calculations
-      const allRes = await apiClient.get('/yarn-stocks', { params: { limit: 1000 } });
-      const list = allRes.data.data;
-      const totalKg = list.reduce((sum: number, item: any) => sum + Number(item.currentKg), 0);
-      const activeLots = list.filter((item: any) => Number(item.currentKg) > 0).length;
-      const totalValueUsd = list.reduce((sum: number, item: any) => sum + (Number(item.currentKg) * Number(item.unitPrice)), 0);
-      const criticalCount = list.filter((item: any) => Number(item.currentKg) > 0 && Number(item.currentKg) <= 100).length;
-      setStats({ totalKg, activeLots, totalValueUsd, criticalCount });
+      // Fetch statistics from optimized stats endpoint
+      const statsRes = await apiClient.get('/yarn-stocks/stats');
+      setStats({
+        totalKg: Number(statsRes.data.totalKg || 0),
+        activeLots: Number(statsRes.data.activeLots || 0),
+        totalValueUsd: Number(statsRes.data.totalValueUsd || 0),
+        criticalCount: Number(statsRes.data.criticalCount || 0),
+      });
 
     } catch (error: any) {
       console.error(error);
@@ -175,14 +175,14 @@ const YarnStocks: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* HEADER SECTION */}
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h2 className="text-ust-baslik-md font-ust-baslik-md text-on-surface">İplik Envanteri</h2>
           <p className="text-govde-metin text-on-surface-variant">Ham madde stok takibi ve lot yönetimi</p>
         </div>
         <button 
           onClick={handleOpenCreate}
-          className="bg-bilgi-mavisi text-white px-5 py-2.5 rounded-lg flex items-center gap-2 hover:bg-secondary transition-all font-semibold shadow-md active:scale-95"
+          className="w-full sm:w-auto bg-bilgi-mavisi text-white px-5 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-secondary transition-all font-semibold shadow-md active:scale-95"
         >
           <span className="material-symbols-outlined">add</span>
           Yeni İplik Girişi
@@ -190,7 +190,7 @@ const YarnStocks: React.FC = () => {
       </div>
 
       {/* STATS GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm">
           <p className="text-kucuk-not text-on-surface-variant uppercase font-semibold">Toplam İplik (KG)</p>
           <h3 className="text-ust-baslik-md font-bold mt-1">{stats.totalKg.toLocaleString('tr-TR')} kg</h3>
@@ -215,7 +215,7 @@ const YarnStocks: React.FC = () => {
 
       {/* FILTER SEARCH BAR */}
       <div className="bg-white p-4 rounded-xl border border-outline-variant shadow-sm flex items-center justify-between">
-        <div className="relative w-96">
+        <div className="relative w-full md:w-96">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant opacity-50">search</span>
           <input 
             value={search}
@@ -240,12 +240,12 @@ const YarnStocks: React.FC = () => {
                 <tr className="bg-surface-container border-b border-outline-variant">
                   <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">LOT NO</th>
                   <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">TİP</th>
-                  <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">NE NO</th>
+                  <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant hidden md:table-cell">NE NO</th>
                   <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">RENK</th>
-                  <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">TEDARİKÇİ</th>
-                  <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">GİRİŞ KG</th>
+                  <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant hidden md:table-cell">TEDARİKÇİ</th>
+                  <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant hidden md:table-cell">GİRİŞ KG</th>
                   <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">KALAN KG</th>
-                  <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">BİRİM FİYAT</th>
+                  <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant hidden md:table-cell">BİRİM FİYAT</th>
                   <th className="px-4 py-3 text-kucuk-not font-semibold text-on-surface-variant">DURUM</th>
                 </tr>
               </thead>
@@ -257,22 +257,22 @@ const YarnStocks: React.FC = () => {
                     <tr key={record.id} className="hover:bg-arka-plan-gri transition-colors">
                       <td className="px-4 py-3 text-tablo-verisi font-etiket-mono font-bold text-bilgi-mavisi">{record.lotNumber}</td>
                       <td className="px-4 py-3 text-tablo-verisi">{record.yarnType}</td>
-                      <td className="px-4 py-3 text-tablo-verisi">{record.neNumber || '-'}</td>
+                      <td className="px-4 py-3 text-tablo-verisi hidden md:table-cell">{record.neNumber || '-'}</td>
                       <td className="px-4 py-3 text-tablo-verisi">
                         <span className="flex items-center gap-2">
                           <span 
-                            className="w-3 h-3 rounded-full border border-outline" 
+                            className="w-3 h-3 rounded-full border border-outline shrink-0" 
                             style={{ backgroundColor: record.colorCode || '#ffffff' }}
                           ></span> 
                           {record.color}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-tablo-verisi">{record.supplier?.name}</td>
-                      <td className="px-4 py-3 text-tablo-verisi">{Number(record.initialKg).toFixed(1)} kg</td>
+                      <td className="px-4 py-3 text-tablo-verisi hidden md:table-cell">{record.supplier?.name}</td>
+                      <td className="px-4 py-3 text-tablo-verisi hidden md:table-cell">{Number(record.initialKg).toFixed(1)} kg</td>
                       <td className={`px-4 py-3 text-tablo-verisi font-bold ${isCritical ? 'text-hata-kirmizisi animate-pulse' : remaining > 0 ? 'text-basari-yesili' : 'text-on-surface-variant'}`}>
                         {remaining.toFixed(1)} kg
                       </td>
-                      <td className="px-4 py-3 text-tablo-verisi">${Number(record.unitPrice).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-tablo-verisi hidden md:table-cell">${Number(record.unitPrice).toFixed(2)}</td>
                       <td className="px-4 py-3 text-tablo-verisi">
                         {remaining > 0 ? (
                           <span className="px-2 py-0.5 bg-green-50 text-basari-yesili rounded border border-green-200 text-xs font-bold">STOKTA</span>
@@ -320,7 +320,7 @@ const YarnStocks: React.FC = () => {
               <button className="material-symbols-outlined text-on-surface-variant hover:text-hata-kirmizisi transition-colors" onClick={() => setYarnModalOpen(false)}>close</button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-kenar-payi grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="p-kenar-payi grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="col-span-1">
                 <label className="block text-kucuk-not font-semibold text-on-surface-variant mb-1">Lot Numarası</label>
                 <input 
@@ -437,7 +437,7 @@ const YarnStocks: React.FC = () => {
                 />
               </div>
 
-              <div className="col-span-2 bg-arka-plan-gri px-kenar-payi py-4 flex justify-end gap-3 -mx-kenar-payi -mb-kenar-payi mt-4">
+              <div className="col-span-1 md:col-span-2 bg-arka-plan-gri px-kenar-payi py-4 flex justify-end gap-3 -mx-kenar-payi -mb-kenar-payi mt-4">
                 <button 
                   type="button"
                   className="px-4 py-2 text-govde-metin font-semibold hover:bg-surface-variant rounded" 

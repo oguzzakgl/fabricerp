@@ -25,7 +25,8 @@ interface AuthContextType {
   tenant: Tenant | null;
   token: string | null;
   loading: boolean;
-  login: (token: string, user: User, tenant: Tenant) => void;
+  login: (token: string, user: User, tenant: Tenant | null) => void;
+  updateAuth: (token: string, user: User, tenant: Tenant) => void;
   logout: () => void;
 }
 
@@ -59,7 +60,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const login = (newToken: string, newUser: User, newTenant: Tenant) => {
+  const login = (newToken: string, newUser: User, newTenant: Tenant | null) => {
+    localStorage.setItem('token', newToken);
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    setUser(newUser);
+    setTenant(newTenant);
+    setToken(newToken);
+  };
+
+  const updateAuth = (newToken: string, newUser: User, newTenant: Tenant) => {
     localStorage.setItem('token', newToken);
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
     setUser(newUser);
@@ -77,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, tenant, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, tenant, token, loading, login, updateAuth, logout }}>
       {children}
     </AuthContext.Provider>
   );

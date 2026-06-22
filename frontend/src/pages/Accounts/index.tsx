@@ -77,13 +77,13 @@ const Accounts: React.FC = () => {
       setData(response.data.data);
       setTotal(response.data.total);
 
-      // Fetch overall counts to calculate metrics
-      const allRes = await apiClient.get('/accounts', { params: { limit: 1000 } });
-      const list = allRes.data.data;
-      const customers = list.filter((a: any) => a.type === 'CUSTOMER').length;
-      const suppliers = list.filter((a: any) => a.type === 'SUPPLIER').length;
-      const both = list.filter((a: any) => a.type === 'BOTH').length;
-      setStats({ customers, suppliers, both });
+      // Fetch metrics from optimized stats endpoint
+      const statsRes = await apiClient.get('/accounts/stats');
+      setStats({
+        customers: statsRes.data.customers || 0,
+        suppliers: statsRes.data.suppliers || 0,
+        both: statsRes.data.both || 0,
+      });
 
     } catch (error: any) {
       console.error(error);
@@ -487,31 +487,31 @@ const Accounts: React.FC = () => {
       {/* 1. LIST VIEW CONTAINER */}
       <div className={`${detailVisible ? 'hidden' : ''}`}>
         {/* HEADER ACTIONS */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
             <h3 className="text-ust-baslik-md font-ust-baslik-md font-bold">Tüm Cari Hesaplar</h3>
             <p className="text-govde-metin text-on-surface-variant">Fabrika veri tabanındaki tüm müşteri ve tedarikçiler.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 w-full sm:w-auto">
             <button 
               onClick={handleOpenImport}
-              className="bg-surface-container hover:bg-surface-container-high text-on-surface px-standart-padding py-2.5 rounded flex items-center gap-2 font-semibold transition-all shadow-sm active:scale-95 border border-outline-variant"
+              className="flex-1 sm:flex-none bg-surface-container hover:bg-surface-container-high text-on-surface px-standart-padding py-2.5 rounded flex items-center justify-center gap-2 font-semibold transition-all shadow-sm active:scale-95 border border-outline-variant"
             >
               <span className="material-symbols-outlined text-sm">upload_file</span>
               Excel'den Aktar
             </button>
             <button 
               onClick={handleOpenCreate}
-              className="bg-bilgi-mavisi hover:bg-secondary text-white px-standart-padding py-2.5 rounded flex items-center gap-2 font-semibold transition-all shadow-sm active:scale-95"
+              className="flex-1 sm:flex-none bg-bilgi-mavisi hover:bg-secondary text-white px-standart-padding py-2.5 rounded flex items-center justify-center gap-2 font-semibold transition-all shadow-sm active:scale-95"
             >
               <span className="material-symbols-outlined text-sm">person_add</span>
-              Yeni Cari Hesap
+              Yeni Cari
             </button>
           </div>
         </div>
 
         {/* BENTO STATS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <div className="bg-white p-standart-padding rounded-lg border border-outline-variant shadow-sm flex items-center justify-between">
             <div>
               <span className="text-kucuk-not text-on-surface-variant uppercase tracking-wider font-semibold">Toplam Müşteri</span>
@@ -539,40 +539,40 @@ const Accounts: React.FC = () => {
 
         {/* LIST TABLE SECTION */}
         <div className="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
-          <div className="px-kenar-payi py-standart-padding border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest flex-wrap gap-4">
-            <div className="flex gap-2">
+          <div className="px-kenar-payi py-standart-padding border-b border-outline-variant flex flex-col sm:flex-row sm:justify-between sm:items-center bg-surface-container-lowest gap-4">
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 whitespace-nowrap">
               <button 
                 onClick={() => handleTypeSelect(undefined)}
-                className={`px-3 py-1 rounded text-sm font-medium ${!typeFilter ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                className={`shrink-0 px-3 py-1 rounded text-sm font-medium ${!typeFilter ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
               >
                 Hepsi
               </button>
               <button 
                 onClick={() => handleTypeSelect('CUSTOMER')}
-                className={`px-3 py-1 rounded text-sm font-medium ${typeFilter === 'CUSTOMER' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                className={`shrink-0 px-3 py-1 rounded text-sm font-medium ${typeFilter === 'CUSTOMER' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
               >
                 Müşteriler
               </button>
               <button 
                 onClick={() => handleTypeSelect('SUPPLIER')}
-                className={`px-3 py-1 rounded text-sm font-medium ${typeFilter === 'SUPPLIER' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                className={`shrink-0 px-3 py-1 rounded text-sm font-medium ${typeFilter === 'SUPPLIER' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
               >
                 Tedarikçiler
               </button>
               <button 
                 onClick={() => handleTypeSelect('BOTH')}
-                className={`px-3 py-1 rounded text-sm font-medium ${typeFilter === 'BOTH' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                className={`shrink-0 px-3 py-1 rounded text-sm font-medium ${typeFilter === 'BOTH' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
               >
                 Alıcı + Satıcı
               </button>
             </div>
             
-            <div className="relative">
+            <div className="relative w-full sm:w-64">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant opacity-50">search</span>
               <input 
                 value={search} 
                 onChange={handleSearchChange}
-                className="pl-10 pr-4 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-tablo-verisi focus:ring-1 focus:ring-bilgi-mavisi outline-none w-64" 
+                className="w-full pl-10 pr-4 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-tablo-verisi focus:ring-1 focus:ring-bilgi-mavisi outline-none" 
                 placeholder="Cari adı veya kodu ara..." 
                 type="text"
               />
@@ -589,10 +589,10 @@ const Accounts: React.FC = () => {
                 <thead className="bg-surface-container-low text-on-surface-variant text-kucuk-not font-semibold uppercase">
                   <tr>
                     <th className="px-kenar-payi py-3 border-b border-outline-variant">Ünvan / Cari Adı</th>
-                    <th className="px-standart-padding py-3 border-b border-outline-variant">Cari Kodu</th>
+                    <th className="px-standart-padding py-3 border-b border-outline-variant hidden md:table-cell">Cari Kodu</th>
                     <th className="px-standart-padding py-3 border-b border-outline-variant">Tip</th>
-                    <th className="px-standart-padding py-3 border-b border-outline-variant">Telefon</th>
-                    <th className="px-standart-padding py-3 border-b border-outline-variant">Vergi Detayı</th>
+                    <th className="px-standart-padding py-3 border-b border-outline-variant hidden md:table-cell">Telefon</th>
+                    <th className="px-standart-padding py-3 border-b border-outline-variant hidden md:table-cell">Vergi Detayı</th>
                     <th className="px-kenar-payi py-3 border-b border-outline-variant text-right">İşlemler</th>
                   </tr>
                 </thead>
@@ -605,23 +605,23 @@ const Accounts: React.FC = () => {
                     >
                       <td className="px-kenar-payi py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-surface-container-high rounded flex items-center justify-center font-bold text-on-primary-container">
+                          <div className="w-10 h-10 bg-surface-container-high rounded flex items-center justify-center font-bold text-on-primary-container shrink-0">
                             {getInitials(record.name)}
                           </div>
-                          <div>
-                            <div className="font-semibold text-on-surface">{record.name}</div>
-                            <div className="text-[11px] text-on-surface-variant">{record.email || '-'}</div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-on-surface truncate max-w-[200px] sm:max-w-xs md:max-w-sm" title={record.name}>{record.name}</div>
+                            <div className="text-[11px] text-on-surface-variant truncate">{record.email || '-'}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-standart-padding py-4 text-on-surface-variant font-etiket-mono">{record.code}</td>
+                      <td className="px-standart-padding py-4 text-on-surface-variant font-etiket-mono hidden md:table-cell">{record.code}</td>
                       <td className="px-standart-padding py-4">
                         {record.type === 'CUSTOMER' && <span className="px-2 py-0.5 bg-blue-50 text-bilgi-mavisi rounded-full text-[11px] font-bold border border-blue-100">MÜŞTERİ</span>}
                         {record.type === 'SUPPLIER' && <span className="px-2 py-0.5 bg-orange-50 text-uyari-kehribar rounded-full text-[11px] font-bold border border-orange-100">TEDARİKÇİ</span>}
                         {record.type === 'BOTH' && <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-[11px] font-bold border border-purple-100">HEPSİ</span>}
                       </td>
-                      <td className="px-standart-padding py-4 text-on-surface-variant">{record.phone || '-'}</td>
-                      <td className="px-standart-padding py-4 text-on-surface-variant">
+                      <td className="px-standart-padding py-4 text-on-surface-variant hidden md:table-cell">{record.phone || '-'}</td>
+                      <td className="px-standart-padding py-4 text-on-surface-variant hidden md:table-cell">
                         {record.taxOffice ? `${record.taxOffice} / ` : ''}{record.taxNumber || '-'}
                       </td>
                       <td className="px-kenar-payi py-4 text-right">
@@ -632,22 +632,22 @@ const Accounts: React.FC = () => {
                                   e.stopPropagation();
                                   navigate(`/orders?customerId=${record.id}&openStock=true`);
                                 }}
-                                className="text-basari-yesili hover:underline font-semibold flex items-center gap-1 text-xs bg-basari-yesili/10 px-2.5 py-1 rounded border border-basari-yesili/20 hover:bg-basari-yesili/20 transition-all"
+                                className="text-basari-yesili hover:underline font-semibold flex items-center gap-1 text-xs bg-basari-yesili/10 px-2.5 py-1 rounded border border-basari-yesili/20 hover:bg-basari-yesili/20 transition-all shrink-0"
                               >
                                 <span className="material-symbols-outlined text-[14px]">shopping_cart</span>
-                                Sipariş Oluştur
+                                <span className="hidden sm:inline">Sipariş</span>
                               </button>
                             )}
                             <button 
                               onClick={(e) => handleOpenEdit(record, e)}
-                              className="text-bilgi-mavisi hover:text-secondary font-semibold flex items-center gap-1 text-xs bg-bilgi-mavisi/10 px-2 py-1 rounded border border-bilgi-mavisi/20 hover:bg-bilgi-mavisi/20 transition-all"
+                              className="text-bilgi-mavisi hover:text-secondary font-semibold flex items-center gap-1 text-xs bg-bilgi-mavisi/10 px-2 py-1 rounded border border-bilgi-mavisi/20 hover:bg-bilgi-mavisi/20 transition-all shrink-0"
                             >
                               Düzelt
                             </button>
                             <button 
                               onClick={(e) => handleDeleteAccount(record, e)}
                               title="Cariyi Sil"
-                              className="text-hata-kirmizisi hover:bg-red-50 p-1 rounded transition-colors"
+                              className="text-hata-kirmizisi hover:bg-red-50 p-1 rounded transition-colors shrink-0"
                             >
                               <span className="material-symbols-outlined text-sm">delete</span>
                             </button>
@@ -726,22 +726,22 @@ const Accounts: React.FC = () => {
 
           {/* Tabs */}
           <div className="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
-            <div className="flex border-b border-outline-variant bg-surface-container-low px-standart-padding gap-2">
+            <div className="flex border-b border-outline-variant bg-surface-container-low px-standart-padding gap-2 overflow-x-auto hide-scrollbar whitespace-nowrap">
               <button 
                 onClick={() => setActiveTab('orders')}
-                className={`px-6 py-4 border-b-2 font-bold text-sm transition-all ${activeTab === 'orders' ? 'border-bilgi-mavisi text-bilgi-mavisi' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
+                className={`shrink-0 px-6 py-4 border-b-2 font-bold text-sm transition-all ${activeTab === 'orders' ? 'border-bilgi-mavisi text-bilgi-mavisi' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
               >
                 Kumaş Satış Siparişleri ({orders.length})
               </button>
               <button 
                 onClick={() => setActiveTab('yarn')}
-                className={`px-6 py-4 border-b-2 font-bold text-sm transition-all ${activeTab === 'yarn' ? 'border-bilgi-mavisi text-bilgi-mavisi' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
+                className={`shrink-0 px-6 py-4 border-b-2 font-bold text-sm transition-all ${activeTab === 'yarn' ? 'border-bilgi-mavisi text-bilgi-mavisi' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
               >
                 İplik Alım Stokları ({yarnStocks.length})
               </button>
               <button 
                 onClick={() => setActiveTab('finance')}
-                className={`px-6 py-4 border-b-2 font-bold text-sm transition-all ${activeTab === 'finance' ? 'border-bilgi-mavisi text-bilgi-mavisi' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
+                className={`shrink-0 px-6 py-4 border-b-2 font-bold text-sm transition-all ${activeTab === 'finance' ? 'border-bilgi-mavisi text-bilgi-mavisi' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
               >
                 Finansal Evraklar ({transactions.length})
               </button>

@@ -17,6 +17,12 @@ const MainLayout: React.FC = () => {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [iban, setIban] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Sayfa değiştiğinde mobil menüyü kapat
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const fetchSettings = async () => {
     try {
@@ -88,13 +94,31 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-arka-plan-gri text-on-surface">
+      {/* Mobile Drawer Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-xs transition-opacity duration-300"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className="bg-sidebar-koyu h-screen w-64 fixed left-0 top-0 border-r border-outline-variant flex flex-col py-kenar-payi z-50">
-        <div className="px-kenar-payi mb-8">
-          <h1 className="text-on-secondary-container text-ust-baslik-md font-ust-baslik-md font-bold tracking-tight truncate" title={tenant?.name || 'Tekstil ERP'}>
-            {tenant?.name || 'Tekstil ERP'}
-          </h1>
-          <p className="text-on-secondary-container opacity-60 text-kucuk-not font-kucuk-not">Üretim Kontrol Paneli</p>
+      <aside className={`bg-sidebar-koyu h-screen w-64 fixed left-0 top-0 border-r border-outline-variant flex flex-col py-kenar-payi z-50 transition-transform duration-300 ease-in-out ${
+        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
+        <div className="px-kenar-payi mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-on-secondary-container text-ust-baslik-md font-ust-baslik-md font-bold tracking-tight truncate max-w-[180px]" title={tenant?.name || 'Tekstil ERP'}>
+              {tenant?.name || 'Tekstil ERP'}
+            </h1>
+            <p className="text-on-secondary-container opacity-60 text-kucuk-not font-kucuk-not">Üretim Kontrol Paneli</p>
+          </div>
+          <button 
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden text-on-secondary-container opacity-70 hover:opacity-100 material-symbols-outlined"
+          >
+            close
+          </button>
         </div>
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto hide-scrollbar">
           {menuItems.map((item) => {
@@ -143,16 +167,24 @@ const MainLayout: React.FC = () => {
       </aside>
 
       {/* Main Content Canvas */}
-      <main className="ml-64 min-h-screen">
+      <main className="lg:ml-64 min-h-screen">
         {/* Top Nav Bar */}
-        <header className="fixed top-0 right-0 w-[calc(100%-16rem)] z-40 bg-surface-container-lowest border-b border-outline-variant h-16 px-kenar-payi flex justify-between items-center shadow-sm">
-          <div className="flex items-center gap-4 flex-1">
-            <h2 className="text-alt-baslik font-alt-baslik font-bold text-on-surface">{getHeaderTitle()}</h2>
-            <div className="relative w-96">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+        <header className="fixed top-0 right-0 w-full lg:w-[calc(100%-16rem)] z-40 bg-surface-container-lowest border-b border-outline-variant h-16 px-4 lg:px-kenar-payi flex justify-between items-center shadow-sm">
+          <div className="flex items-center gap-2 lg:gap-4 flex-1 min-w-0">
+            {/* Hamburger Burger Menu Button */}
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-2 hover:bg-surface-container-low rounded-full transition-colors flex items-center justify-center"
+              title="Menüyü Aç"
+            >
+              <span className="material-symbols-outlined text-on-surface">menu</span>
+            </button>
+            <h2 className="text-alt-baslik font-alt-baslik font-bold text-on-surface truncate pr-2">{getHeaderTitle()}</h2>
+            <div className="relative w-full max-w-[140px] sm:max-w-xs md:max-w-md hidden sm:block">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-base">search</span>
               <input
-                className="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded text-govde-metin focus:ring-1 focus:ring-bilgi-mavisi outline-none"
-                placeholder="Barkod, Lot No veya Cari Ara... (Enter ile git)"
+                className="w-full pl-9 pr-3 py-1.5 bg-surface-container-low border border-outline-variant rounded text-sm focus:ring-1 focus:ring-bilgi-mavisi outline-none"
+                placeholder="Barkod, Lot No veya Cari Ara..."
                 type="text"
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
@@ -160,23 +192,24 @@ const MainLayout: React.FC = () => {
               />
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="p-2 hover:bg-surface-container-low rounded-full transition-colors relative" title="Bildirimler (Yakında)">
+          <div className="flex items-center gap-1 sm:gap-3">
+            <button className="p-2 hover:bg-surface-container-low rounded-full transition-colors relative hidden sm:flex" title="Bildirimler (Yakında)">
               <span className="material-symbols-outlined">notifications</span>
             </button>
             <button 
               onClick={() => setSettingsOpen(true)}
-              className="p-2 hover:bg-surface-container-low rounded-full transition-colors"
+              className="p-2 hover:bg-surface-container-low rounded-full transition-colors flex"
+              title="Ayarlar"
             >
               <span className="material-symbols-outlined">settings</span>
             </button>
-            <button className="p-2 hover:bg-surface-container-low rounded-full transition-colors">
+            <button className="p-2 hover:bg-surface-container-low rounded-full transition-colors hidden sm:flex">
               <span className="material-symbols-outlined">help_outline</span>
             </button>
           </div>
         </header>
 
-        <div className="pt-24 px-kenar-payi pb-kenar-payi">
+        <div className="pt-20 px-3 lg:px-kenar-payi pb-kenar-payi">
           <Outlet />
         </div>
       </main>

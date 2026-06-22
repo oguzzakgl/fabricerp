@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import apiClient from '../../api/client';
 
 interface YarnOption {
@@ -37,6 +37,39 @@ const Fabrics: React.FC = () => {
   const [rolls, setRolls] = useState<any[]>([]);
   const [yarnStocks, setYarnStocks] = useState<YarnOption[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // OCR & Hızlı Giriş Modal State'leri
+  const [ocrModalOpen, setOcrModalOpen] = useState(false);
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [ocrFabricName, setOcrFabricName] = useState('');
+  const [presetFabricName, setPresetFabricName] = useState<string | null>(null);
+  const [colorMappings, setColorMappings] = useState<{ [key: string]: string }>({
+    '1': '',
+    '2': '',
+    '3': '',
+    '4': '',
+    '5': '',
+    '6': '',
+    '7': '',
+    '8': '',
+  });
+
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [detectedData, setDetectedData] = useState<any | null>(null);
+  const [fabricCardsMap, setFabricCardsMap] = useState<{ [key: string]: any }>({});
+  const [colorModalOpen, setColorModalOpen] = useState(false);
+  const [selectedFabricForColor, setSelectedFabricForColor] = useState<string>('');
+  const [localColorMapping, setLocalColorMapping] = useState<{ [key: string]: string }>({});
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [detectedItems, setDetectedItems] = useState<any[]>([]);
+  const [activeEditIndex, setActiveEditIndex] = useState<number | null>(null);
+  const [scanLogs, setScanLogs] = useState<{ time: string; text: string; type: 'success' | 'error' | 'warning' }[]>([]);
 
   // Expanded card state
   const [expandedFabric, setExpandedFabric] = useState<string | null>(null);
@@ -83,7 +116,12 @@ const Fabrics: React.FC = () => {
   const fetchRolls = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/rolls', { params: { limit: 1000 } });
+      const response = await apiClient.get('/rolls', { 
+        params: { 
+          limit: 1000, 
+          includeRecipe: 'false' 
+        } 
+      });
       setRolls(response.data.data);
     } catch (error) {
       console.error('Kumaş topları yüklenemedi:', error);
@@ -107,10 +145,611 @@ const Fabrics: React.FC = () => {
     }
   };
 
+  const fetchFabricCards = async () => {
+    try {
+      const res = await apiClient.get('/fabric-cards');
+      const cardsMap = res.data.reduce((acc: any, card: any) => {
+        acc[card.fabricType.toUpperCase().trim()] = card;
+        return acc;
+      }, {});
+      setFabricCardsMap(cardsMap);
+    } catch (err) {
+      console.error('Kumaş kartelaları yüklenemedi:', err);
+    }
+  };
+
   useEffect(() => {
     fetchRolls();
     fetchYarns();
+    fetchFabricCards();
   }, []);
+
+  const handleUploadCardImage = async (fabricType: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    setLoading(true);
+    try {
+      const uploadRes = await apiClient.post('/fabric-cards/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const imageUrl = uploadRes.data.imageUrl;
+      
+      await apiClient.post('/fabric-cards', {
+        fabricType,
+        imageUrl,
+      });
+      
+      await fetchFabricCards();
+      alert('Kartela görseli başarıyla yüklendi.');
+    } catch (err: any) {
+      console.error('Görsel yüklenemedi:', err);
+      alert(err.response?.data?.message || 'Görsel yükleme başarısız.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenColorMappingModal = (fabricType: string) => {
+    setSelectedFabricForColor(fabricType);
+    const card = fabricCardsMap[fabricType.toUpperCase().trim()];
+    
+    if (card && card.colorMapping) {
+      setLocalColorMapping(card.colorMapping);
+    } else {
+      setLocalColorMapping({
+        '1': '',
+        '2': '',
+        '3': '',
+        '4': '',
+        '5': '',
+        '6': '',
+        '7': '',
+        '8': '',
+      });
+    }
+    setColorModalOpen(true);
+  };
+
+  const handleAddLocalColorRow = () => {
+    setLocalColorMapping(prev => {
+      const keys = Object.keys(prev).map(Number);
+      const nextKey = keys.length > 0 ? Math.max(...keys) + 1 : 1;
+      return {
+        ...prev,
+        [String(nextKey)]: ''
+      };
+    });
+  };
+
+  const handleUpdateLocalColorValue = (key: string, value: string) => {
+    setLocalColorMapping(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const handleSaveColorMapping = async () => {
+    setLoading(true);
+    try {
+      await apiClient.post('/fabric-cards', {
+        fabricType: selectedFabricForColor,
+        colorMapping: localColorMapping,
+      });
+      await fetchFabricCards();
+      setColorModalOpen(false);
+      alert('Renk tanımları başarıyla kaydedildi.');
+    } catch (err: any) {
+      console.error('Renk tanımları kaydedilemedi:', err);
+      alert(err.response?.data?.message || 'Renk tanımları kaydedilemedi.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getImageUrl = (url: string | null) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    let baseUrl = apiClient.defaults.baseURL || '';
+    if (!baseUrl.startsWith('http')) {
+      const host = window.location.hostname;
+      baseUrl = `http://${host}:3001`;
+    } else {
+      baseUrl = baseUrl.replace('/api', '');
+    }
+    return baseUrl + url;
+  };
+
+  // İki metin arasındaki benzerliği hesaplayan Levenshtein mesafe algoritması
+  const getSimilarity = (s1: string, s2: string): number => {
+    let longer = s1.toLowerCase().trim();
+    let shorter = s2.toLowerCase().trim();
+    if (s1.length < s2.length) {
+      longer = s2.toLowerCase().trim();
+      shorter = s1.toLowerCase().trim();
+    }
+    const longerLength = longer.length;
+    if (longerLength === 0) return 1.0;
+
+    const costs = [];
+    for (let i = 0; i <= longer.length; i++) {
+      let lastValue = i;
+      for (let j = 0; j <= shorter.length; j++) {
+        if (i === 0) {
+          costs[j] = j;
+        } else {
+          if (j > 0) {
+            let newValue = costs[j - 1];
+            if (longer.charAt(i - 1) !== shorter.charAt(j - 1)) {
+              newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+            }
+            costs[j - 1] = lastValue;
+            lastValue = newValue;
+          }
+        }
+      }
+      if (i > 0) costs[shorter.length] = lastValue;
+    }
+
+    const distance = costs[shorter.length];
+    return (longerLength - distance) / longerLength;
+  };
+
+  // OCR ile okunan kumaş adını sistemdeki kumaşlar arasından fuzzy eşleştirme ile düzeltir
+  const findBestFabricMatch = (detectedName: string): string => {
+    if (!detectedName) return '';
+    let bestMatch = detectedName;
+    let highestSim = 0;
+
+    groupedFabrics.forEach(fabric => {
+      const sim = getSimilarity(detectedName, fabric.fabricType);
+      if (sim > highestSim) {
+        highestSim = sim;
+        bestMatch = fabric.fabricType;
+      }
+    });
+
+    // Eğer benzerlik %65 veya daha fazlaysa otomatik olarak kayıtlı ismi kullan
+    return highestSim >= 0.65 ? bestMatch : detectedName;
+  };
+
+  // Kamera cihazlarını listele
+  const getCameraDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      setAvailableDevices(videoDevices);
+      if (videoDevices.length > 0 && !selectedCameraId) {
+        const backCam = videoDevices.find(d => 
+          d.label.toLowerCase().includes('back') || 
+          d.label.toLowerCase().includes('arka') || 
+          d.label.toLowerCase().includes('environment')
+        );
+        setSelectedCameraId(backCam ? backCam.deviceId : videoDevices[0].deviceId);
+      }
+    } catch (err) {
+      console.error('Kamera cihazları alınamadı:', err);
+    }
+  };
+
+  // Kamerayı başlat
+  const startCamera = async (deviceId?: string) => {
+    setCameraError(null);
+    setIsCameraActive(false);
+    
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+    }
+
+    const targetId = deviceId || selectedCameraId;
+    const constraints: MediaStreamConstraints = {
+      video: targetId 
+        ? { deviceId: { exact: targetId } }
+        : { facingMode: 'environment' }
+    };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setIsCameraActive(true);
+        videoRef.current.play().catch(e => console.warn('Video play error:', e));
+      }
+    } catch (err: any) {
+      console.warn('Birinci kamera denemesi başarısız, basit mod deneniyor:', err);
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          setIsCameraActive(true);
+          videoRef.current.play().catch(e => console.warn('Fallback video play error:', e));
+        }
+      } catch (fallbackErr: any) {
+        console.error('Kamera tamamen başlatılamadı:', fallbackErr);
+        setCameraError('Kameraya erişilemedi. Lütfen tarayıcı/uygulama kamera izinlerinizi kontrol edin.');
+      }
+    }
+  };
+
+  // Kamerayı durdur
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  // Eşleştirmeye yeni renk/numara satırı ekle
+  const handleAddColorMappingRow = () => {
+    setColorMappings(prev => {
+      const keys = Object.keys(prev).map(Number);
+      const nextKey = keys.length > 0 ? Math.max(...keys) + 1 : 1;
+      return {
+        ...prev,
+        [String(nextKey)]: ''
+      };
+    });
+  };
+
+  // Eşleştirme değerini güncelle
+  const handleUpdateColorMappingValue = (key: string, value: string) => {
+    setColorMappings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const addScanLog = (text: string, type: 'success' | 'error' | 'warning') => {
+    const time = new Date().toLocaleTimeString();
+    setScanLogs(prev => [{ time, text, type }, ...prev]);
+  };
+
+  // Görseli Canvas kullanarak maksimum 1000px genişlik/yükseklikte ve %80 kalitede JPEG olarak sıkıştırır
+  const compressImage = (fileOrBlob: File | Blob): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(fileOrBlob);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const maxDim = 1000;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(fileOrBlob);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                resolve(fileOrBlob);
+              }
+            },
+            'image/jpeg',
+            0.80
+          );
+        };
+        img.onerror = () => resolve(fileOrBlob);
+      };
+      reader.onerror = () => resolve(fileOrBlob);
+    });
+  };
+
+  // Backend PaddleOCR Servisi ile OCR analizi yapan ortak fonksiyon
+  const processOCR = async (fileOrBlob: File | Blob, fileName: string) => {
+    try {
+      addScanLog(`${fileName} sıkıştırılıyor...`, 'warning');
+      const compressedBlob = await compressImage(fileOrBlob);
+      addScanLog(`Sıkıştırıldı: ${Math.round(compressedBlob.size / 1024)} KB`, 'warning');
+
+      const formData = new FormData();
+      formData.append('file', compressedBlob, fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') ? fileName : `${fileName}.jpg`);
+
+      const response = await apiClient.post('/rolls/ocr', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const data = response.data;
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      let detectedFabric = data.fabricType || '';
+      if (presetFabricName) {
+        detectedFabric = presetFabricName;
+        addScanLog(`Kumaş tipi ön tanımlı (${presetFabricName}) olarak kilitlendi, etiket okuması atlandı.`, 'success');
+      } else if (detectedFabric) {
+        detectedFabric = findBestFabricMatch(detectedFabric);
+      }
+
+      const detectedColorNum = data.colorCode || '';
+      let matchedColorName = '';
+      
+      const targetFabricUpper = (detectedFabric || '').toUpperCase().trim();
+      const card = fabricCardsMap[targetFabricUpper];
+      if (card && card.colorMapping && card.colorMapping[detectedColorNum]) {
+        matchedColorName = `Renk ${detectedColorNum} - ${card.colorMapping[detectedColorNum]}`;
+      } else {
+        matchedColorName = detectedColorNum 
+          ? (isNaN(Number(detectedColorNum)) ? detectedColorNum : `Renk ${detectedColorNum}`) 
+          : 'Bilinmeyen Renk';
+      }
+
+      let currentScore = 0;
+      if (data.lengthM > 0) currentScore += 10;
+      if (data.netWeightKg > 0) currentScore += 10;
+      if (detectedColorNum) currentScore += 10;
+      if (detectedFabric && detectedFabric !== 'Bilinmeyen Kumaş') currentScore += 10;
+
+      return {
+        fabricType: detectedFabric || ocrFabricName || 'Bilinmeyen Kumaş',
+        lengthM: data.lengthM || 0,
+        netWeightKg: data.netWeightKg || 0,
+        colorCode: detectedColorNum,
+        colorName: matchedColorName,
+        quality: '1',
+        rawText: data.rawText || '',
+        score: currentScore,
+      };
+    } catch (err: any) {
+      console.error('OCR API Hatası:', err);
+      addScanLog(`Hata: ${fileName} işlenemedi. ${err.message || ''}`, 'error');
+      return null;
+    }
+  };
+
+  // Fotoğraf çek ve kılavuz çerçeveyi kırparak OCR analizi yap
+  const captureAndProcessOCR = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    setOcrLoading(true);
+
+    const video = videoRef.current;
+    const rawCanvas = canvasRef.current;
+    
+    const videoW = video.videoWidth;
+    const videoH = video.videoHeight;
+    
+    // Kılavuz hizalama oranları (genişlik %55, yükseklik %90)
+    const cropW = videoW * 0.55;
+    const cropH = videoH * 0.90;
+    const cropX = (videoW - cropW) / 2;
+    const cropY = (videoH - cropH) / 2;
+
+    rawCanvas.width = cropW;
+    rawCanvas.height = cropH;
+
+    const ctx = rawCanvas.getContext('2d');
+    if (!ctx) {
+      setOcrLoading(false);
+      return;
+    }
+    
+    // Sadece kılavuz alanındaki görüntüyü keserek canvas'a çiziyoruz (gürültüyü önler ve hızı artırır)
+    ctx.drawImage(
+      video,
+      cropX, cropY, cropW, cropH, // Kaynak alan (video üzerindeki kırpma koordinatları)
+      0, 0, cropW, cropH          // Hedef alan (canvas'ın tamamı)
+    );
+
+    rawCanvas.toBlob(async (blob) => {
+      if (!blob) {
+        addScanLog('Kamera görüntüsü yakalanamadı.', 'error');
+        setOcrLoading(false);
+        return;
+      }
+
+      try {
+        addScanLog('Kamera görüntüsü taranıyor...', 'warning');
+        const result = await processOCR(blob, 'capture.jpg');
+
+        if (result) {
+          const newRecord = {
+            id: `record_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            fabricType: result.fabricType,
+            lengthM: result.lengthM,
+            netWeightKg: result.netWeightKg,
+            colorCode: result.colorCode,
+            colorName: result.colorName,
+            quality: result.quality,
+            fileName: 'Kamera Yakalaması',
+          };
+
+          setDetectedItems(prev => {
+            const updated = [...prev, newRecord];
+            setDetectedData(newRecord);
+            setActiveEditIndex(updated.length - 1);
+            return updated;
+          });
+
+          addScanLog(`Kamera Taraması Başarılı! Skor: ${result.score}/40. Metre: ${result.lengthM}, Ağırlık: ${result.netWeightKg}`, 'success');
+
+          if (result.fabricType && ocrFabricName && result.fabricType.toLowerCase() !== ocrFabricName.toLowerCase()) {
+            addScanLog(`Uyarı: Etiketteki kumaş adı (${result.fabricType}) girdiğiniz (${ocrFabricName}) ile uyuşmuyor!`, 'warning');
+          }
+        } else {
+          addScanLog('Kamera etiketinden veri okunamadı.', 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        addScanLog('Kamera OCR işlemi sırasında hata oluştu.', 'error');
+      } finally {
+        setOcrLoading(false);
+      }
+    }, 'image/jpeg', 0.95);
+  };
+
+  // Galeriden Seçilen Çoklu Görselleri Analiz Et
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setOcrLoading(true);
+    addScanLog(`${files.length} adet dosya yükleniyor, toplu analiz başlatıldı...`, 'warning');
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      addScanLog(`Analiz ediliyor (${i + 1}/${files.length}): ${file.name}`, 'warning');
+
+      try {
+        const result = await processOCR(file, file.name);
+        if (result) {
+          const newRecord = {
+            id: `record_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            fabricType: result.fabricType,
+            lengthM: result.lengthM,
+            netWeightKg: result.netWeightKg,
+            colorCode: result.colorCode,
+            colorName: result.colorName,
+            quality: result.quality,
+            fileName: file.name,
+          };
+
+          setDetectedItems(prev => {
+            const updated = [...prev, newRecord];
+            if (updated.length === 1) {
+              setDetectedData(newRecord);
+              setActiveEditIndex(0);
+            } else if (activeEditIndex === null) {
+              setDetectedData(newRecord);
+              setActiveEditIndex(updated.length - 1);
+            }
+            return updated;
+          });
+
+          addScanLog(`Başarılı: ${file.name} (Skor: ${result.score}/40). Metre: ${result.lengthM}, Ağırlık: ${result.netWeightKg}`, 'success');
+        } else {
+          addScanLog(`Hata: ${file.name} etiketinden veri okunamadı.`, 'error');
+        }
+      } catch (err) {
+        console.error(`Dosya işleme hatası (${file.name}):`, err);
+        addScanLog(`Hata: ${file.name} işlenemedi.`, 'error');
+      }
+    }
+
+    setOcrLoading(false);
+    // Reset file input value so same files can be re-uploaded if needed
+    e.target.value = '';
+  };
+
+  // Listeden bir kaydı sil
+  const handleRemoveItemFromDetectedList = (index: number) => {
+    setDetectedItems(prev => {
+      const updated = prev.filter((_, idx) => idx !== index);
+      if (updated.length === 0) {
+        setDetectedData(null);
+        setActiveEditIndex(null);
+      } else {
+        const newIndex = index >= updated.length ? updated.length - 1 : index;
+        setActiveEditIndex(newIndex);
+        setDetectedData(updated[newIndex]);
+      }
+      return updated;
+    });
+  };
+
+  // Listeden bir kaydı seçip düzenle
+  const handleSelectActiveEditItem = (index: number) => {
+    setActiveEditIndex(index);
+    setDetectedData(detectedItems[index]);
+  };
+
+  // Form verisi değiştikçe dizide ve aktif state'te güncelle
+  const handleUpdateActiveOcrField = (field: string, value: any) => {
+    if (activeEditIndex === null || !detectedData) return;
+
+    const updatedRecord = { ...detectedData, [field]: value };
+    if (field === 'colorCode') {
+      updatedRecord.colorName = colorMappings[value] || (value ? `Renk ${value}` : 'Bilinmeyen Renk');
+    }
+
+    setDetectedData(updatedRecord);
+    setDetectedItems(prev => prev.map((item, idx) => idx === activeEditIndex ? updatedRecord : item));
+  };
+
+  // Taranan ruloların tamamını kaydet
+  const handleSaveAllOcrRolls = async () => {
+    if (detectedItems.length === 0) return;
+
+    const invalidItems = detectedItems.filter(item => item.lengthM <= 0 || item.netWeightKg <= 0 || !item.fabricType);
+    if (invalidItems.length > 0) {
+      alert(`Listede metre, ağırlık veya kumaş adı hatalı olan ${invalidItems.length} kayıt var. Lütfen önce bunları düzeltin.`);
+      return;
+    }
+
+    setLoading(true);
+    addScanLog(`Toplu kayıt işlemi başlatıldı (${detectedItems.length} top)...`, 'warning');
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < detectedItems.length; i++) {
+      const item = detectedItems[i];
+      try {
+        const grammage = calculateGrammage(item.lengthM, item.netWeightKg);
+        const existingFabric = groupedFabrics.find(f => f.fabricType.toLowerCase() === item.fabricType.toLowerCase());
+        const price = existingFabric ? existingFabric.pricePerMeter : 150;
+
+        const notesObj = { pricePerMeter: price };
+        const notesStr = JSON.stringify(notesObj);
+
+        const payload = {
+          barcodeNumber: generateBarcode(),
+          fabricType: item.fabricType,
+          color: item.colorName,
+          widthCm: 150,
+          weightGsm: grammage,
+          lengthM: item.lengthM,
+          netWeightKg: item.netWeightKg,
+          quality: '1',
+          notes: notesStr,
+        };
+
+        await apiClient.post('/rolls', payload);
+        successCount++;
+      } catch (err) {
+        console.error(`Top kaydedilemedi:`, err);
+        failCount++;
+      }
+    }
+
+    setLoading(false);
+    if (successCount > 0) {
+      addScanLog(`Toplu Kayıt Başarılı! ${successCount} top envantere eklendi. ${failCount > 0 ? `${failCount} top başarısız.` : ''}`, 'success');
+      alert(`Toplu kayıt tamamlandı. Başarılı: ${successCount}, Başarısız: ${failCount}`);
+      setDetectedItems([]);
+      setDetectedData(null);
+      setActiveEditIndex(null);
+      fetchRolls();
+    } else {
+      addScanLog('Toplu kayıt başarısız oldu.', 'error');
+      alert('Kayıt yapılamadı. Detayları işlem günlüğünden kontrol edin.');
+    }
+  };
 
   // Group rolls by fabricType
   const groupRolls = (rollsList: any[]): GroupedFabric[] => {
@@ -545,22 +1184,39 @@ const Fabrics: React.FC = () => {
   return (
     <div>
       {/* Action Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h2 className="text-ust-baslik-md font-bold text-on-surface">Kumaş Envanter Yönetimi</h2>
           <p className="text-govde-metin text-on-surface-variant">Top stoklarını kumaş cinslerine ve renklere göre takip edin.</p>
         </div>
-        <button 
-          onClick={() => {
-            setColorsInput([]);
-            setFabricName('');
-            setModalOpen(true);
-          }}
-          className="flex items-center gap-2 px-6 py-2.5 bg-bilgi-mavisi text-white rounded font-alt-baslik hover:opacity-90 transition-all shadow-sm font-semibold active:scale-95"
-        >
-          <span className="material-symbols-outlined">add</span>
-          <span>Yeni Kumaş Girişi</span>
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <button 
+            onClick={() => {
+              setColorsInput([]);
+              setFabricName('');
+              setModalOpen(true);
+            }}
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-secondary/15 hover:bg-secondary/25 border border-outline-variant rounded font-alt-baslik transition-all font-semibold active:scale-95 text-on-surface text-sm w-full sm:w-auto"
+          >
+            <span className="material-symbols-outlined">add</span>
+            <span>Yeni Kumaş Girişi</span>
+          </button>
+          
+          <button 
+            onClick={() => {
+              setPresetFabricName(null);
+              setOcrModalOpen(true);
+              setOcrFabricName('');
+              setScanLogs([]);
+              setDetectedData(null);
+              getCameraDevices();
+            }}
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-bilgi-mavisi text-white rounded font-alt-baslik hover:opacity-90 transition-all shadow-sm font-semibold active:scale-95 text-sm w-full sm:w-auto"
+          >
+            <span className="material-symbols-outlined">photo_camera</span>
+            <span>Kamera ile Hızlı Giriş</span>
+          </button>
+        </div>
       </div>
 
       {/* Grouped Fabrics Expanded Card List */}
@@ -581,13 +1237,13 @@ const Fabrics: React.FC = () => {
               >
                 {/* Header Row */}
                 <div 
-                  className={`p-4 flex items-center justify-between flex-wrap gap-4 cursor-pointer hover:bg-surface-container-low transition-colors select-none ${
+                  className={`p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 cursor-pointer hover:bg-surface-container-low transition-colors select-none ${
                     isExpanded ? 'bg-surface-container-low border-b border-outline-variant' : ''
                   }`}
                   onClick={() => setExpandedFabric(isExpanded ? null : fabric.fabricType)}
                 >
                   <div className="flex items-center gap-6">
-                    <span className="px-2.5 py-1 bg-bilgi-mavisi/10 text-bilgi-mavisi rounded font-bold text-xs font-etiket-mono border border-bilgi-mavisi/20">
+                    <span className="px-2.5 py-1 bg-bilgi-mavisi/10 text-bilgi-mavisi rounded font-bold text-xs font-etiket-mono border border-bilgi-mavisi/20 shrink-0">
                       {fabric.code}
                     </span>
                     <div>
@@ -596,32 +1252,47 @@ const Fabrics: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-10">
-                    <div className="text-center min-w-[70px]">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-3 justify-between lg:justify-end w-full lg:w-auto">
+                    <div className="text-center min-w-[60px] flex-1 sm:flex-none">
                       <span className="block font-bold text-on-surface text-sm">{fabric.colorCount}</span>
                       <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Renk</span>
                     </div>
-                    <div className="text-center min-w-[90px]">
+                    <div className="text-center min-w-[70px] flex-1 sm:flex-none">
                       <span className="block font-bold text-on-surface text-sm">{fabric.totalRolls} Top</span>
                       <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Toplam Top</span>
                     </div>
-                    <div className="text-center min-w-[100px]">
+                    <div className="text-center min-w-[90px] flex-1 sm:flex-none">
                       <span className="block font-bold text-on-surface text-sm text-basari-yesili">{fabric.totalLength.toFixed(1)} m</span>
                       <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Toplam Metraj</span>
                     </div>
-                    <div className="text-center min-w-[120px]">
+                    <div className="text-center min-w-[100px] flex-1 sm:flex-none">
                       <span className="block font-bold text-on-surface text-sm text-bilgi-mavisi">₺{fabric.pricePerMeter} / m</span>
                       <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Metre Fiyatı</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-end shrink-0">
                       <button 
                         onClick={(e) => handleOpenPriceEdit(fabric, e)}
-                        className="text-xs font-bold bg-secondary/15 hover:bg-secondary/25 px-2.5 py-1 rounded text-on-surface transition-all border border-outline-variant"
+                        className="text-xs font-bold bg-secondary/15 hover:bg-secondary/25 px-2.5 py-1.5 rounded text-on-surface transition-all border border-outline-variant"
                       >
                         Fiyat Düzenle
                       </button>
-                      <button className="text-on-surface-variant hover:text-on-surface">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPresetFabricName(fabric.fabricType);
+                          setOcrFabricName(fabric.fabricType);
+                          setOcrModalOpen(true);
+                          setScanLogs([]);
+                          setDetectedData(null);
+                          getCameraDevices();
+                        }}
+                        className="text-xs font-bold bg-bilgi-mavisi hover:bg-bilgi-mavisi/90 text-white px-2.5 py-1.5 rounded transition-all shadow-sm active:scale-95 flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+                        <span>Stok Ekle</span>
+                      </button>
+                      <button className="text-on-surface-variant hover:text-on-surface p-1">
                         <span className={`material-symbols-outlined transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
                           keyboard_arrow_down
                         </span>
@@ -632,8 +1303,73 @@ const Fabrics: React.FC = () => {
 
                 {/* Expanded Side-by-Side Colors Cards */}
                 {isExpanded && (
-                  <div className="p-4 bg-arka-plan-gri/20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t border-outline-variant/40">
-                    {Object.keys(fabric.colors).map((colorName) => {
+                  <div className="p-4 bg-arka-plan-gri/20 border-t border-outline-variant/40 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      
+                      {/* Kartela ve Renk Tanımları Yönetimi Kartı */}
+                      <div className="bg-white rounded-lg border border-outline-variant/60 shadow-sm p-4 flex flex-col justify-between min-h-[250px] shrink-0">
+                        <div>
+                          <h5 className="font-bold text-sm text-on-surface mb-3 flex items-center gap-1.5 border-b border-outline-variant/40 pb-2">
+                            <span className="material-symbols-outlined text-sm text-secondary">photo_library</span>
+                            Kumaş Kartelası
+                          </h5>
+                          <div className="flex justify-center items-center py-1">
+                            {fabricCardsMap[fabric.fabricType.toUpperCase().trim()]?.imageUrl ? (
+                              <div className="relative group rounded-lg overflow-hidden border border-outline-variant w-full h-44 bg-gray-50 flex items-center justify-center">
+                                <img 
+                                  src={getImageUrl(fabricCardsMap[fabric.fabricType.toUpperCase().trim()].imageUrl)} 
+                                  alt={`${fabric.fabricType} Kartelası`} 
+                                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-all duration-300"
+                                  onClick={() => setLightboxImage(fabricCardsMap[fabric.fabricType.toUpperCase().trim()].imageUrl)}
+                                />
+                                <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <label className="bg-white/90 hover:bg-white p-1.5 rounded-full shadow-md cursor-pointer transition-all flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-[16px] text-on-surface">edit</span>
+                                    <input 
+                                      type="file" 
+                                      accept="image/*" 
+                                      className="hidden" 
+                                      onChange={(e) => {
+                                        if (e.target.files?.[0]) {
+                                          handleUploadCardImage(fabric.fabricType, e.target.files[0]);
+                                        }
+                                      }} 
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            ) : (
+                              <label className="border-2 border-dashed border-outline-variant hover:border-bilgi-mavisi/50 rounded-lg w-full h-44 flex flex-col items-center justify-center cursor-pointer transition-all bg-surface-container-low p-4 text-center">
+                                <span className="material-symbols-outlined text-3xl text-on-surface-variant mb-1">add_photo_alternate</span>
+                                <span className="text-xs font-bold text-on-surface-variant">Kartela Görseli Yükle</span>
+                                <span className="text-[10px] text-on-surface-variant/70 mt-1">Maksimum 10MB</span>
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={(e) => {
+                                    if (e.target.files?.[0]) {
+                                      handleUploadCardImage(fabric.fabricType, e.target.files[0]);
+                                    }
+                                  }} 
+                                />
+                              </label>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-2">
+                          <button
+                            onClick={() => handleOpenColorMappingModal(fabric.fabricType)}
+                            className="flex items-center justify-center gap-2 px-3 py-2 bg-secondary/15 hover:bg-secondary/25 border border-outline-variant rounded font-semibold text-xs text-on-surface transition-all active:scale-95 w-full"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">palette</span>
+                            <span>Renk Tanımlarını Yönet ({Object.keys(fabricCardsMap[fabric.fabricType.toUpperCase().trim()]?.colorMapping || {}).length})</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {Object.keys(fabric.colors).map((colorName) => {
                       const colorGroup = fabric.colors[colorName];
                       return (
                         <div 
@@ -707,7 +1443,8 @@ const Fabrics: React.FC = () => {
                       );
                     })}
                   </div>
-                )}
+                </div>
+              )}
               </div>
             );
           })
@@ -727,7 +1464,7 @@ const Fabrics: React.FC = () => {
 
             <form onSubmit={handleSubmitBulk} className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Row 1: Barcode & Fabric Name */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-on-surface-variant uppercase">Barkod No (Otomatik)</label>
                   <input 
@@ -751,7 +1488,7 @@ const Fabrics: React.FC = () => {
               </div>
 
               {/* Row 2: Price Per Meter & Width */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-on-surface-variant uppercase">Metre Satış Fiyatı (₺)</label>
                   <input 
@@ -795,7 +1532,7 @@ const Fabrics: React.FC = () => {
               {hasRecipeInput && (
                 <div className="p-4 bg-surface-container-low rounded-lg border border-outline-variant space-y-4">
                   <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider">Maliyet Hesabı İçin Reçete</h4>
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Weft */}
                     <div className="space-y-3">
                       <label className="text-[11px] font-bold text-on-surface-variant block">Atkı İpliği (Weft)</label>
@@ -1126,6 +1863,569 @@ const Fabrics: React.FC = () => {
                 <button type="submit" className="px-8 py-2 bg-bilgi-mavisi text-white rounded text-sm font-bold">Kaydet</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: OCR Hızlı Stok Girişi */}
+      {ocrModalOpen && (
+        <div className="fixed inset-0 bg-on-primary-fixed/60 backdrop-blur-sm z-[60] flex items-center justify-center lg:p-4 p-0">
+          <div className="bg-white w-full max-w-6xl lg:rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col h-full lg:max-h-[95vh] rounded-none">
+            <div className="px-6 py-4 bg-arka-plan-gri border-b border-outline-variant flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-bilgi-mavisi">photo_camera</span>
+                <h3 className="font-alt-baslik text-alt-baslik font-bold">
+                  Kamera OCR ile Hızlı Stok Girişi {presetFabricName ? `- ${presetFabricName}` : ''}
+                </h3>
+              </div>
+              <button 
+                className="hover:bg-outline-variant/30 p-1 rounded-full transition-colors" 
+                onClick={() => {
+                  stopCamera();
+                  setPresetFabricName(null);
+                  setOcrModalOpen(false);
+                }}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 min-h-0">
+              
+              {/* Mobil için Ayarları Göster/Gizle Butonu */}
+              <div className="lg:hidden col-span-1 border border-outline-variant/60 bg-surface-container-low p-3 rounded-lg flex justify-between items-center">
+                <span className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-secondary">settings</span>
+                  Eşleştirme ve Kumaş Giriş Ayarları
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSettingsExpanded(!settingsExpanded)}
+                  className="px-3 py-1 bg-secondary text-on-secondary rounded text-xs font-bold hover:opacity-90 active:scale-95 transition-all"
+                >
+                  {settingsExpanded ? "Gizle" : "Düzenle"}
+                </button>
+              </div>
+
+              {/* SOL SÜTUN: Kurulum (Kumaş & Renk Eşleştirme) */}
+              <div className={`lg:col-span-4 space-y-4 flex flex-col ${settingsExpanded ? 'flex' : 'hidden lg:flex'}`}>
+                <div className="bg-arka-plan-gri/20 p-4 rounded-lg border border-outline-variant/60 space-y-4">
+                  <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5 border-b border-outline-variant/30 pb-2">
+                    <span className="material-symbols-outlined text-sm text-on-surface-variant">settings</span>
+                    Kumaş Giriş Ayarları
+                  </h4>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-on-surface-variant uppercase">Eklenecek Kumaş Adı</label>
+                    <input 
+                      value={ocrFabricName}
+                      onChange={(e) => setOcrFabricName(e.target.value)}
+                      className="w-full border border-outline-variant rounded px-3 py-2 text-sm focus:ring-1 focus:ring-bilgi-mavisi outline-none" 
+                      placeholder="Örn: EN LYCRA" 
+                      type="text" 
+                    />
+                    <p className="text-[10px] text-on-surface-variant">Okutulan etiket ile karşılaştırmak için kullanılacaktır. Boş bırakılırsa etikette yazan isim otomatik açılır.</p>
+                  </div>
+                </div>
+
+                <div className="bg-arka-plan-gri/20 p-4 rounded-lg border border-outline-variant/60 flex-1 flex flex-col min-h-[250px]">
+                  <div className="flex justify-between items-center border-b border-outline-variant/30 pb-2 mb-3">
+                    <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm text-on-surface-variant">palette</span>
+                      Renk - Sayı Eşleştirmesi
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={handleAddColorMappingRow}
+                      className="text-xs font-bold text-bilgi-mavisi hover:underline"
+                    >
+                      + Renk Ekle
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto max-h-[300px] space-y-2 pr-1">
+                    {Object.keys(colorMappings).sort((a, b) => Number(a) - Number(b)).map((key) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold bg-surface-container px-2.5 py-1.5 rounded border border-outline-variant min-w-[32px] text-center">
+                          {key}
+                        </span>
+                        <input
+                          type="text"
+                          value={colorMappings[key]}
+                          onChange={(e) => handleUpdateColorMappingValue(key, e.target.value)}
+                          placeholder={`${key} Numaralı Renk Adı (Örn: Siyah)`}
+                          className="flex-1 border border-outline-variant rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white"
+                        />
+                        {Number(key) > 7 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextMap = { ...colorMappings };
+                              delete nextMap[key];
+                              setColorMappings(nextMap);
+                            }}
+                            className="text-hata-kirmizisi hover:bg-red-50 p-1 rounded"
+                          >
+                            <span className="material-symbols-outlined text-sm">close</span>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ORTA SÜTUN: Kamera Akışı ve Analiz */}
+              <div className="lg:col-span-5 flex flex-col gap-4">
+                <div className="bg-black rounded-lg overflow-hidden relative aspect-video flex items-center justify-center border border-outline-variant shadow-inner">
+                  <video 
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${isCameraActive ? '' : 'hidden'}`}
+                  />
+                  
+                  {/* Kamera Aktifken ve Analiz Yapılmıyorken Gösterilecek Hizalama Kılavuzu */}
+                  {isCameraActive && !ocrLoading && (
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                      <div className="w-[55%] h-[90%] border-2 border-dashed border-basari-yesili/70 rounded-lg relative flex flex-col justify-between p-3 bg-black/15">
+                        {/* Köşe Süsleri */}
+                        <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-basari-yesili"></div>
+                        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-basari-yesili"></div>
+                        <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-basari-yesili"></div>
+                        <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-basari-yesili"></div>
+                        
+                        <div className="text-[8px] text-basari-yesili font-bold bg-black/50 px-1.5 py-0.5 rounded self-center tracking-wider text-center">
+                          ETİKETİ BU ALANA HİZALAYIN
+                        </div>
+                        
+                        {/* Şablon Kılavuz Katmanları (Yarı Saydam) */}
+                        <div className="w-full flex-1 flex flex-col justify-between mt-1.5 opacity-40">
+                          <div className="border border-white/30 rounded px-1 py-0.5 text-[7px] text-white/80 w-max bg-black/30">
+                            İşletme No
+                          </div>
+                          
+                          <div className="flex justify-between items-center w-full">
+                            <div className="border border-white/30 rounded px-1 py-0.5 text-[7px] text-white/80 bg-black/30">
+                              Kumaş Adı
+                            </div>
+                            <div className="border border-basari-yesili/40 border-dashed rounded px-1.5 py-0.5 text-[7px] text-basari-yesili bg-black/30 font-bold flex flex-col items-end">
+                              <span>Metre (Mt)</span>
+                              <span>Ağırlık (Kg)</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-between items-end w-full">
+                            <div className="border border-white/30 rounded px-1 py-0.5 text-[7px] text-white/80 bg-black/30">
+                              Barkod Alanı
+                            </div>
+                            <div className="w-6 h-6 rounded-full border border-basari-yesili/50 border-dashed flex items-center justify-center text-[7px] text-basari-yesili bg-black/30 font-bold">
+                              COLOR
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isCameraActive && (
+                    <div className="text-center text-white p-6 space-y-3">
+                      <span className="material-symbols-outlined text-5xl opacity-40">videocam_off</span>
+                      <p className="text-xs text-gray-400">Kamera kapalı</p>
+                      {cameraError && <p className="text-xs text-hata-kirmizisi px-4">{cameraError}</p>}
+                      <button
+                        type="button"
+                        onClick={() => startCamera()}
+                        className="px-4 py-2 bg-bilgi-mavisi text-white rounded text-xs font-semibold hover:opacity-90 active:scale-95 transition-all"
+                      >
+                        Kamerayı Başlat
+                      </button>
+                    </div>
+                  )}
+
+                  {ocrLoading && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white space-y-2">
+                      <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                      <span className="text-xs font-semibold">Görsel analiz ediliyor...</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2 items-center justify-between flex-wrap">
+                  <div className="flex gap-2 items-center flex-1 min-w-[150px] max-w-[50%]">
+                    <span className="material-symbols-outlined text-on-surface-variant text-sm">photo_camera_front</span>
+                    <select
+                      value={selectedCameraId}
+                      onChange={(e) => {
+                        setSelectedCameraId(e.target.value);
+                        if (isCameraActive) startCamera(e.target.value);
+                      }}
+                      className="border border-outline-variant rounded p-1 text-xs outline-none bg-white w-full"
+                    >
+                      {availableDevices.length === 0 ? (
+                        <option value="">Kamera bulunamadı</option>
+                      ) : (
+                        availableDevices.map(device => (
+                          <option key={device.deviceId} value={device.deviceId}>
+                            {device.label || `Kamera ${device.deviceId.substring(0, 5)}...`}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="flex gap-2 items-center">
+                    <input 
+                      type="file" 
+                      id="ocr-file-upload" 
+                      multiple 
+                      accept="image/*" 
+                      onChange={handleImageUpload} 
+                      className="hidden" 
+                    />
+                    <label 
+                      htmlFor="ocr-file-upload"
+                      className="flex items-center gap-1 px-3 py-1.5 bg-secondary/15 hover:bg-secondary/25 border border-outline-variant rounded text-xs font-bold cursor-pointer transition-colors active:scale-95 select-none text-on-surface"
+                    >
+                      <span className="material-symbols-outlined text-sm">upload_file</span>
+                      Galeriden Seç
+                    </label>
+
+                    {isCameraActive ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={stopCamera}
+                          className="px-3 py-1.5 bg-arka-plan-gri border border-outline-variant hover:bg-outline-variant/10 rounded text-xs font-semibold"
+                        >
+                          Durdur
+                        </button>
+                        <button
+                          type="button"
+                          onClick={captureAndProcessOCR}
+                          disabled={ocrLoading}
+                          className="px-5 py-1.5 bg-bilgi-mavisi text-white hover:opacity-90 rounded text-xs font-bold flex items-center gap-1 shadow-sm"
+                        >
+                          <span className="material-symbols-outlined text-sm">scan</span>
+                          Etiketi Tara
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startCamera()}
+                        className="px-4 py-1.5 bg-bilgi-mavisi text-white rounded text-xs font-semibold hover:opacity-90 active:scale-95 transition-all"
+                      >
+                        Kamerayı Aç
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Seçili Rulonun Düzenleme Formu */}
+                {detectedData && (
+                  <div className="bg-arka-plan-gri/20 p-4 rounded-lg border border-outline-variant/60 space-y-3 mt-2">
+                    <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5 border-b border-outline-variant/30 pb-2">
+                      <span className="material-symbols-outlined text-sm text-on-surface-variant">edit_note</span>
+                      Taranan Veriyi Düzenle
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-on-surface-variant block uppercase">Kumaş Adı</label>
+                        <input 
+                          type="text"
+                          value={detectedData.fabricType}
+                          onChange={(e) => handleUpdateActiveOcrField('fabricType', e.target.value)}
+                          className="w-full border border-outline-variant bg-white rounded px-2.5 py-1.5 text-xs focus:ring-1 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-on-surface-variant block uppercase">Metre (mt)</label>
+                        <input 
+                          type="number"
+                          value={detectedData.lengthM}
+                          onChange={(e) => handleUpdateActiveOcrField('lengthM', Number(e.target.value))}
+                          className="w-full border border-outline-variant bg-white rounded px-2.5 py-1.5 text-xs focus:ring-1 text-right outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-on-surface-variant block uppercase">Ağırlık (kg)</label>
+                        <input 
+                          type="number"
+                          value={detectedData.netWeightKg}
+                          onChange={(e) => handleUpdateActiveOcrField('netWeightKg', Number(e.target.value))}
+                          className="w-full border border-outline-variant bg-white rounded px-2.5 py-1.5 text-xs focus:ring-1 text-right outline-none"
+                        />
+                      </div>
+                      <div className="col-span-2 md:col-span-1">
+                        <label className="text-[10px] font-bold text-on-surface-variant block uppercase">Renk Kodu</label>
+                        <input 
+                          type="text"
+                          value={detectedData.colorCode}
+                          onChange={(e) => handleUpdateActiveOcrField('colorCode', e.target.value)}
+                          className="w-full border border-outline-variant bg-white rounded px-2.5 py-1.5 text-xs focus:ring-1 text-center font-bold outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-outline-variant/30">
+                      <div className="bg-white px-2.5 py-1.5 rounded border border-outline-variant text-[11px] font-semibold text-on-surface-variant flex items-center justify-between">
+                        <span>Eşleşen Renk:</span>
+                        <span className="font-bold text-bilgi-mavisi">{detectedData.colorName}</span>
+                      </div>
+                      <div className="bg-white px-2.5 py-1.5 rounded border border-outline-variant text-[11px] font-semibold text-on-surface-variant flex items-center justify-between">
+                        <span>Hesaplanan Gramaj:</span>
+                        <span className="font-bold text-basari-yesili">{calculateGrammage(detectedData.lengthM, detectedData.netWeightKg).toFixed(3)} kg/m</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+
+              {/* SAĞ SÜTUN: OCR Sonuç & Onay & İşlem Logları */}
+              <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
+                <div className="bg-arka-plan-gri/20 p-4 rounded-lg border border-outline-variant/60 flex-1 flex flex-col min-h-[350px]">
+                  <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5 border-b border-outline-variant/30 pb-2 mb-3">
+                    <span className="material-symbols-outlined text-sm text-on-surface-variant">check_circle</span>
+                    Okuma Sonuçları & Onay
+                  </h4>
+
+                  {detectedItems.length > 0 ? (
+                    <div className="flex-1 flex flex-col justify-between min-h-0 space-y-3">
+                      
+                      {/* Taranan Rulo Listesi */}
+                      <div className="flex-1 flex flex-col min-h-0">
+                        <label className="text-[10px] font-bold text-on-surface-variant block uppercase mb-1.5">Taranan Etiketler ({detectedItems.length})</label>
+                        <div className="flex-1 overflow-y-auto space-y-2 pr-1 border border-outline-variant/40 rounded p-2 bg-arka-plan-gri/10 max-h-[380px]">
+                          {detectedItems.map((item, idx) => {
+                            const isActive = activeEditIndex === idx;
+                            const isInvalid = item.lengthM <= 0 || item.netWeightKg <= 0 || !item.fabricType;
+                            
+                            return (
+                              <div 
+                                key={item.id}
+                                onClick={() => handleSelectActiveEditItem(idx)}
+                                className={`p-2.5 rounded-lg border cursor-pointer transition-all flex flex-col gap-1.5 relative ${
+                                  isActive 
+                                    ? 'bg-bilgi-mavisi/10 border-bilgi-mavisi/60 text-bilgi-mavisi font-semibold shadow-sm' 
+                                    : isInvalid
+                                    ? 'bg-hata-kirmizisi/5 border-hata-kirmizisi/35 hover:bg-hata-kirmizisi/10'
+                                    : 'bg-white border-outline-variant/30 hover:bg-surface-container-low'
+                                }`}
+                              >
+                                {/* Üst Bilgi Satırı */}
+                                <div className="flex justify-between items-start">
+                                  <div className="truncate flex-1 pr-2">
+                                    <span className="block truncate font-mono text-[9px] text-on-surface-variant/80" title={item.fileName}>
+                                      {item.fileName}
+                                    </span>
+                                    <span className="block font-bold text-xs text-on-surface truncate">
+                                      {item.fabricType || 'Kumaş Adı Yok'}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-1">
+                                    {isInvalid && (
+                                      <span className="material-symbols-outlined text-sm text-hata-kirmizisi animate-pulse" title="Hatalı veya eksik bilgi!">
+                                        warning
+                                      </span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveItemFromDetectedList(idx);
+                                      }}
+                                      className="text-hata-kirmizisi hover:bg-red-50 p-0.5 rounded transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-xs">close</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Rozetler (Badge) Satırı */}
+                                <div className="flex flex-wrap gap-1 text-[10px]">
+                                  <span className={`px-1.5 py-0.5 rounded-md font-mono ${
+                                    item.lengthM <= 0 
+                                      ? 'bg-hata-kirmizisi/15 text-hata-kirmizisi font-bold' 
+                                      : 'bg-surface-container text-on-surface-variant'
+                                  }`}>
+                                    {item.lengthM > 0 ? `${item.lengthM} mt` : '0 mt (Eksik)'}
+                                  </span>
+
+                                  <span className={`px-1.5 py-0.5 rounded-md font-mono ${
+                                    item.netWeightKg <= 0 
+                                      ? 'bg-hata-kirmizisi/15 text-hata-kirmizisi font-bold' 
+                                      : 'bg-surface-container text-on-surface-variant'
+                                  }`}>
+                                    {item.netWeightKg > 0 ? `${item.netWeightKg} kg` : '0 kg (Eksik)'}
+                                  </span>
+
+                                  {item.colorCode && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-bilgi-mavisi/10 text-bilgi-mavisi font-medium" title={item.colorName}>
+                                      R: {item.colorCode}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                {isInvalid && (
+                                  <div className="text-[9px] text-hata-kirmizisi font-bold">
+                                    Lütfen sol formdan değerleri düzeltin.
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveAllOcrRolls}
+                        disabled={loading}
+                        className="w-full py-2 bg-basari-yesili text-white rounded-lg text-xs font-bold hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center justify-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-sm">done_all</span>
+                        {loading ? 'Kaydediliyor...' : `Tümünü Onayla ve Envantere Ekle (${detectedItems.length})`}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-on-surface-variant bg-gray-50 rounded border border-dashed border-outline-variant/60 text-xs italic gap-2">
+                      <span className="material-symbols-outlined text-3xl opacity-40">photo_library</span>
+                      <p>Galeriden fotoğraf yükleyin veya kamerayla etiket taratın.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* LOG PANELI */}
+                <div className="bg-arka-plan-gri/20 p-4 rounded-lg border border-outline-variant/60 h-[180px] flex flex-col min-h-0">
+                  <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5 border-b border-outline-variant/30 pb-2 mb-2">
+                    <span className="material-symbols-outlined text-sm text-on-surface-variant">list_alt</span>
+                    İşlem Günlüğü
+                  </h4>
+                  <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 font-mono text-[10px]">
+                    {scanLogs.length === 0 ? (
+                      <div className="text-on-surface-variant italic text-center pt-8">İşlem kaydı yok</div>
+                    ) : (
+                      scanLogs.map((log, idx) => (
+                        <div key={idx} className={`p-1.5 rounded border ${
+                          log.type === 'success' ? 'bg-basari-yesili/5 border-basari-yesili/20 text-basari-yesili' :
+                          log.type === 'warning' ? 'bg-uyari-kehribar/5 border-uyari-kehribar/20 text-uyari-kehribar' :
+                          'bg-hata-kirmizisi/5 border-hata-kirmizisi/20 text-hata-kirmizisi'
+                        }`}>
+                          <span className="opacity-55 mr-1">[{log.time}]</span> {log.text}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Dinamik Renk Tanımları Yönetimi */}
+      {colorModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-outline-variant max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-4 bg-surface-container-low border-b border-outline-variant/60 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-secondary text-xl">palette</span>
+                <h3 className="font-bold text-base text-on-surface">Renk Tanımları - {selectedFabricForColor}</h3>
+              </div>
+              <button 
+                onClick={() => setColorModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container p-1 rounded-full transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto flex-1 space-y-4">
+              <p className="text-xs text-on-surface-variant">
+                Etiket üzerinde okunan sayısal renk kodlarına (1-8 veya daha fazla) karşılık gelen renk isimlerini tanımlayın.
+              </p>
+              
+              <div className="space-y-3">
+                {Object.keys(localColorMapping)
+                  .sort((a, b) => Number(a) - Number(b))
+                  .map((key) => (
+                    <div key={key} className="flex items-center gap-3 bg-surface-container-low p-2 rounded-lg border border-outline-variant/40">
+                      <span className="font-mono font-bold text-xs bg-secondary/15 text-secondary px-2.5 py-1 rounded min-w-[32px] text-center">
+                        {key}
+                      </span>
+                      <input 
+                        type="text" 
+                        value={localColorMapping[key] || ''}
+                        onChange={(e) => handleUpdateLocalColorValue(key, e.target.value)}
+                        className="flex-1 border border-outline-variant rounded px-2.5 py-1 text-xs outline-none bg-white focus:ring-1 focus:ring-secondary"
+                        placeholder="Örn: Siyah, Koyu Gri, Bej"
+                      />
+                    </div>
+                  ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddLocalColorRow}
+                className="w-full py-2 border-2 border-dashed border-outline-variant hover:border-secondary/50 rounded-lg text-xs font-bold text-on-surface-variant hover:text-secondary flex items-center justify-center gap-1 transition-all"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                <span>Yeni Renk Kodu Ekle ({Object.keys(localColorMapping).length + 1})</span>
+              </button>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-outline-variant/60 bg-surface-container-low flex justify-end gap-2 shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setColorModalOpen(false)}
+                className="px-4 py-2 border border-outline-variant text-xs font-semibold rounded hover:bg-surface-container transition-colors"
+              >
+                İptal
+              </button>
+              <button 
+                type="button" 
+                onClick={handleSaveColorMapping}
+                className="px-6 py-2 bg-secondary text-on-secondary text-xs font-bold rounded hover:opacity-95 shadow-sm active:scale-95 transition-all"
+              >
+                Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Tam Ekran Görsel Görüntüleyici (Lightbox) */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 cursor-zoom-out animate-fade-in"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] w-full flex items-center justify-center">
+            <img 
+              src={getImageUrl(lightboxImage)} 
+              alt="Kartela Detaylı Görünüm" 
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl border border-white/10"
+            />
+            <button 
+              onClick={() => setLightboxImage(null)}
+              className="absolute -top-10 right-0 text-white/75 hover:text-white flex items-center gap-1 text-sm bg-black/40 px-3 py-1.5 rounded-full border border-white/10"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+              <span>Kapat</span>
+            </button>
           </div>
         </div>
       )}

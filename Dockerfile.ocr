@@ -1,0 +1,32 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Sistem kütüphanelerini kur (OpenCV ve PaddleOCR için gerekli C++ bağımlılıkları)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Bağımlılıkları tek seferde kur
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn \
+    python-multipart \
+    numpy<2.0.0 \
+    opencv-python-headless \
+    paddlepaddle \
+    paddleocr
+
+# Gerekli PaddleOCR Türkçe dil modellerinin önceden indirilmesi için ufak bir script çalıştırabiliriz veya çalışma anına bırakabiliriz.
+# Çalışma anında internet bağlantısı üzerinden otomatik inecektir.
+
+# Kodları kopyala
+COPY ocr_service.py .
+
+EXPOSE 8000
+
+# uvicorn'u tüm interface'lerde dinleyecek şekilde çalıştır (Docker için gerekli)
+CMD ["uvicorn", "ocr_service:app", "--host", "0.0.0.0", "--port", "8000"]

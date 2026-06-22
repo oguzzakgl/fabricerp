@@ -18,6 +18,11 @@ export class YarnStocksController {
     return this.yarnStocksService.create(createYarnStockDto, tenantId);
   }
 
+  @Get('stats')
+  getStats(@TenantId() tenantId: string) {
+    return this.yarnStocksService.getStats(tenantId);
+  }
+
   @Get()
   findAll(
     @TenantId() tenantId: string,

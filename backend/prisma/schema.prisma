@@ -26,6 +26,8 @@ model Account {
   financialTransactions FinancialTransaction[]
 
   @@unique([code, tenantId])
+  @@index([tenantId])
+  @@index([type])
   @@map("accounts")
 }
 
@@ -48,6 +50,9 @@ model YarnStock {
   warpRecipes       ProductionRecipe[]  @relation("WarpYarn")
   weftRecipes       ProductionRecipe[]  @relation("WeftYarn")
 
+  @@index([tenantId])
+  @@index([supplierId])
+  @@index([createdAt])
   @@map("yarn_stocks")
 }
 
@@ -71,6 +76,10 @@ model Roll {
   productionRecipe ProductionRecipe?
   orderItems       OrderItem[]
 
+  @@index([tenantId])
+  @@index([fabricType])
+  @@index([status])
+  @@index([createdAt])
   @@map("rolls")
 }
 
@@ -104,6 +113,9 @@ model Order {
   orderItems   OrderItem[]
   invoices     Invoice[]
 
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([createdAt])
   @@map("orders")
 }
 
@@ -142,6 +154,9 @@ model Invoice {
   invoiceItems     InvoiceItem[]
   financialTransactions FinancialTransaction[]
 
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([createdAt])
   @@map("invoices")
 }
 
@@ -179,6 +194,10 @@ model FinancialTransaction {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
+  @@index([tenantId])
+  @@index([accountId])
+  @@index([status])
+  @@index([dueDate])
   @@map("financial_transactions")
 }
 
@@ -202,14 +221,15 @@ model Tenant {
   orders                Order[]
   invoices              Invoice[]
   financialTransactions FinancialTransaction[]
+  fabricCards           FabricCard[]
 
   @@map("tenants")
 }
 
 model User {
   id         String   @id @default(uuid()) @db.Uuid
-  tenantId   String   @map("tenant_id") @db.Uuid
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId   String?  @map("tenant_id") @db.Uuid
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   email      String   @unique
   password   String
   name       String?
@@ -228,4 +248,20 @@ model InviteCode {
   createdAt DateTime  @default(now()) @map("created_at")
 
   @@map("invite_codes")
+}
+
+model FabricCard {
+  id              String      @id @default(uuid()) @db.Uuid
+  fabricType      String      @map("fabric_type")
+  pricePerMeter   Decimal     @default(0) @map("price_per_meter") @db.Decimal(12, 2)
+  imageUrl        String?     @map("image_url")
+  colorMapping    Json?       @map("color_mapping")
+  tenantId        String      @map("tenant_id") @db.Uuid
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  @@unique([fabricType, tenantId])
+  @@index([tenantId])
+  @@map("fabric_cards")
 }

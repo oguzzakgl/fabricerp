@@ -18,12 +18,17 @@ const Login: React.FC = () => {
       setLoading(true);
       const fetchUserData = async () => {
         try {
-          // Set authentication header manually
+          // Store token in localStorage immediately so request interceptor and subsequent calls use it
+          localStorage.setItem('token', queryToken);
+          // Set authentication header manually just in case
           apiClient.defaults.headers.common['Authorization'] = `Bearer ${queryToken}`;
           const response = await apiClient.get('/auth/me');
           login(queryToken, response.data.user, response.data.tenant);
           navigate('/dashboard');
         } catch (error) {
+          // Clear token if verification fails
+          localStorage.removeItem('token');
+          delete apiClient.defaults.headers.common['Authorization'];
           console.error('Failed to login with URL token', error);
           setError('Oturum açılırken bir hata oluştu veya bağlantı süresi doldu.');
         } finally {

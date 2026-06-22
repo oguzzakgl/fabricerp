@@ -150,22 +150,6 @@ function renderRegister() {
         
         <form id="register-form">
           <div class="form-group">
-            <label class="form-label" for="tenantName">Fabrika / Şirket Adı</label>
-            <div class="input-wrapper">
-              <span class="material-symbols-outlined input-icon">domain</span>
-              <input type="text" id="tenantName" class="form-input" placeholder="Örn: Bora Tekstil A.Ş." required />
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label" for="name">Yetkili Ad Soyad</label>
-            <div class="input-wrapper">
-              <span class="material-symbols-outlined input-icon">person</span>
-              <input type="text" id="name" class="form-input" placeholder="Ahmet Yılmaz" required />
-            </div>
-          </div>
-          
-          <div class="form-group">
             <label class="form-label" for="email">E-posta Adresi</label>
             <div class="input-wrapper">
               <span class="material-symbols-outlined input-icon">mail</span>
@@ -206,8 +190,6 @@ function renderRegister() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const tenantName = document.getElementById('tenantName').value.trim();
-    const name = document.getElementById('name').value.trim();
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     const inviteCode = document.getElementById('inviteCode').value.trim();
@@ -223,7 +205,7 @@ function renderRegister() {
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantName, name, email, password, inviteCode }),
+        body: JSON.stringify({ email, password, inviteCode }),
       });
       
       const result = await response.json();

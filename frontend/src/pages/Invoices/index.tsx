@@ -118,7 +118,7 @@ const Invoices: React.FC = () => {
 
   const fetchOrders = async () => {
     try {
-      const response = await apiClient.get('/orders', { params: { limit: 1000 } });
+      const response = await apiClient.get('/orders', { params: { limit: 100, status: 'confirmed' } });
       const mapped = response.data.data.map((order: any) => {
         const mappedItems = order.orderItems.map((oi: any) => {
           const qty = Number(oi.roll.lengthM);
@@ -349,7 +349,7 @@ const Invoices: React.FC = () => {
 
       {/* ORDER SELECTION */}
       <div className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant flex flex-col md:flex-row md:items-center gap-6 shadow-sm">
-        <div className="flex-1 max-w-md">
+        <div className="flex-1 w-full md:max-w-md">
           <label className="text-kucuk-not font-semibold text-on-surface-variant mb-2 block uppercase tracking-wider">
             Sipariş Seçimi
           </label>
@@ -368,12 +368,12 @@ const Invoices: React.FC = () => {
               ))}
           </select>
         </div>
-        <div className="flex gap-4">
-          <div className="bg-arka-plan-gri px-5 py-2.5 rounded-lg border border-outline-variant">
+        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+          <div className="flex-1 bg-arka-plan-gri px-5 py-2.5 rounded-lg border border-outline-variant">
             <span className="text-kucuk-not text-on-surface-variant block uppercase font-semibold">Fatura Tarihi</span>
             <span className="font-semibold text-on-surface">{new Date().toLocaleDateString('tr-TR')}</span>
           </div>
-          <div className="bg-arka-plan-gri px-5 py-2.5 rounded-lg border border-outline-variant">
+          <div className="flex-1 bg-arka-plan-gri px-5 py-2.5 rounded-lg border border-outline-variant">
             <span className="text-kucuk-not text-on-surface-variant block uppercase font-semibold">Vade Tarihi</span>
             <span className="font-semibold text-on-surface">
               {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('tr-TR')}
@@ -384,7 +384,8 @@ const Invoices: React.FC = () => {
 
       {/* INVOICE LINES TABLE */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden shadow-sm">
-        <table className="w-full text-left">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
           <thead>
             <tr className="bg-surface-container text-on-surface-variant border-b border-outline-variant">
               <th className="px-4 py-3 text-kucuk-not font-bold uppercase">Hizmet/Ürün</th>
@@ -417,6 +418,7 @@ const Invoices: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* BOTTOM METRICS */}
         <div className="grid grid-cols-12 p-5 gap-6 border-t border-outline-variant bg-surface-container-low">
@@ -459,12 +461,12 @@ const Invoices: React.FC = () => {
               <span>Genel Toplam:</span>
               <span className="text-bilgi-mavisi">{grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
             </div>
-            <div className="flex gap-3 mt-4">
+            <div className="flex flex-col sm:flex-row gap-3 mt-4">
               <button
                 type="button"
                 onClick={() => setPreviewOpen(true)}
                 disabled={!selectedOrder}
-                className="flex-1 bg-white hover:bg-surface-container-low text-on-surface border border-outline-variant py-3 rounded-lg font-bold shadow active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase flex items-center justify-center gap-2"
+                className="w-full sm:w-auto bg-white hover:bg-surface-container-low text-on-surface border border-outline-variant py-3 rounded-lg font-bold shadow active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined text-base">visibility</span>
                 Faturayı Önizle
@@ -472,8 +474,9 @@ const Invoices: React.FC = () => {
               <button
                 onClick={handleCreateInvoice}
                 disabled={!selectedOrder}
-                className="flex-[2] bg-basari-yesili text-white py-3 rounded-lg font-bold hover:brightness-95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow transition-all uppercase"
+                className="w-full sm:w-auto flex-1 bg-basari-yesili text-white py-3 rounded-lg font-bold hover:brightness-95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow transition-all uppercase flex items-center justify-center gap-2"
               >
+                <span className="material-symbols-outlined text-base font-bold text-white">receipt_long</span>
                 FATURAYI KES VE E-ARŞİV GÖNDER
               </button>
             </div>
@@ -520,7 +523,8 @@ const Invoices: React.FC = () => {
               )}
 
               {/* Realistic e-Arşiv Invoice Wrapper */}
-              <div id="e-arsiv-invoice-container" className="border border-outline-variant rounded-lg p-8 bg-white text-black font-sans relative overflow-hidden shadow-inner">
+              <div className="overflow-x-auto w-full">
+                <div id="e-arsiv-invoice-container" className="border border-outline-variant rounded-lg p-8 bg-white text-black font-sans relative overflow-hidden shadow-inner min-w-[750px] lg:min-w-0">
                 {/* Draft Watermark */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
                   <span className="text-[120px] font-bold tracking-widest rotate-[-30deg]">GEÇERSİZDİR</span>
@@ -670,6 +674,7 @@ const Invoices: React.FC = () => {
                 <div className="mt-8 pt-4 border-t border-black/10 text-[10px] text-slate-500 text-center">
                   Bu belge 213 sayılı V.U.K. uyarınca Gelir İdaresi Başkanlığı e-Arşiv mevzuatına göre oluşturulan taslak fatura önizlemesidir. Mali değeri yoktur.
                 </div>
+              </div>
               </div>
             </div>
 

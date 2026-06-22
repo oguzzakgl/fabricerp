@@ -23,4 +23,10 @@ export class AuthController {
   me(@Req() req: any) {
     return this.authService.me(req.user.userId);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('onboarding')
+  completeOnboarding(@Req() req: any, @Body() dto: { name: string; tenantName: string }) {
+    return this.authService.completeOnboarding(req.user.userId, dto);
+  }
 }

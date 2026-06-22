@@ -227,4 +227,22 @@ export class AccountsService {
       return createdAccounts;
     });
   }
+
+  async getStats(tenantId: string) {
+    const customers = await this.prisma.account.count({
+      where: { tenantId, type: 'CUSTOMER' },
+    });
+    const suppliers = await this.prisma.account.count({
+      where: { tenantId, type: 'SUPPLIER' },
+    });
+    const both = await this.prisma.account.count({
+      where: { tenantId, type: 'BOTH' },
+    });
+
+    return {
+      customers,
+      suppliers,
+      both,
+    };
+  }
 }

@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # 1. PostgreSQL Veritabanı (Yerel veritabanı kullanılacaksa aktif kalmalı)
   postgres:
     image: postgres:16-alpine
     container_name: fabricerp_postgres
@@ -14,6 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # 2. Redis Cache
   redis:
     image: redis:alpine
     container_name: fabricerp_redis
@@ -22,6 +24,49 @@ services:
       - '6379:6379'
     volumes:
       - redis_data:/data
+
+  # 3. PaddleOCR FastAPI Servisi
+  ocr-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.ocr
+    container_name: fabricerp_ocr
+    restart: always
+    ports:
+      - '8000:8000'
+
+  # 4. Backend NestJS Uygulaması
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: fabricerp_backend
+    restart: always
+    ports:
+      - '3001:3001'
+    environment:
+      # Neon DB kullanılacaksa buraya Neon DB URL'si yazılmalı
+      - DATABASE_URL=postgresql://postgres:postgres_password@postgres:5432/fabricerp?schema=public
+      - JWT_SECRET=UretimOrtamiIcinGuvenliAnahtarBurayaYazilmali123
+      - PORT=3001
+      - NODE_ENV=production
+      - OCR_SERVICE_URL=http://ocr-service:8000/ocr
+    depends_on:
+      - postgres
+      - redis
+      - ocr-service
+
+  # 5. Frontend React Nginx Sunucusu
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: fabricerp_frontend
+    restart: always
+    ports:
+      - '80:80'
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

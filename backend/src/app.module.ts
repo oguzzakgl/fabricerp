@@ -11,6 +11,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { FinanceModule } from './finance/finance.module';
 import { SettingsModule } from './settings/settings.module';
 import { AuthModule } from './auth/auth.module';
+import { FabricCardsModule } from './fabric-cards/fabric-cards.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuthModule } from './auth/auth.module';
     InvoicesModule,
     FinanceModule,
     SettingsModule,
+    FabricCardsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

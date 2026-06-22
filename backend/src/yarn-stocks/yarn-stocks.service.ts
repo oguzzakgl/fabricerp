@@ -123,4 +123,46 @@ export class YarnStocksService {
       where: { id },
     });
   }
+
+  async getStats(tenantId: string) {
+    const aggregate = await this.prisma.yarnStock.aggregate({
+      where: { tenantId },
+      _sum: {
+        currentKg: true,
+      },
+    });
+
+    const totalKg = Number(aggregate._sum.currentKg || 0);
+
+    const activeLots = await this.prisma.yarnStock.count({
+      where: {
+        tenantId,
+        currentKg: { gt: 0 },
+      },
+    });
+
+    const totalValueResult = await this.prisma.$queryRaw<any[]>`
+      SELECT SUM(CAST(current_kg AS double precision) * CAST(unit_price AS double precision)) as "totalValue"
+      FROM yarn_stocks
+      WHERE tenant_id = ${tenantId}::uuid
+    `;
+    const totalValueUsd = Number(totalValueResult[0]?.totalValue || 0);
+
+    const criticalCount = await this.prisma.yarnStock.count({
+      where: {
+        tenantId,
+        currentKg: {
+          gt: 0,
+          lte: 100,
+        },
+      },
+    });
+
+    return {
+      totalKg,
+      activeLots,
+      totalValueUsd,
+      criticalCount,
+    };
+  }
 }

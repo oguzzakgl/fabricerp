@@ -36,7 +36,7 @@ export class AuthService {
     // Hash password
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    // Create Tenant, User and mark code as used inside transaction
+    // Create User and mark code as used inside transaction
     const result = await this.prisma.$transaction(async (tx) => {
       // Mark code as used
       await tx.inviteCode.update({
@@ -47,30 +47,22 @@ export class AuthService {
         },
       });
 
-      const tenant = await tx.tenant.create({
-        data: {
-          name: dto.tenantName,
-          email: dto.email,
-        },
-      });
-
       const user = await tx.user.create({
         data: {
           email: dto.email.toLowerCase(),
           password: passwordHash,
-          name: dto.name,
-          tenantId: tenant.id,
+          tenantId: null, // Tenant onboarding adımında kurulacak
           role: 'ADMIN',
         },
       });
 
-      return { tenant, user };
+      return { user };
     });
 
     const payload = {
       sub: result.user.id,
       email: result.user.email,
-      tenantId: result.tenant.id,
+      tenantId: null,
       role: result.user.role,
     };
 
@@ -84,10 +76,7 @@ export class AuthService {
         name: result.user.name,
         role: result.user.role,
       },
-      tenant: {
-        id: result.tenant.id,
-        name: result.tenant.name,
-      },
+      tenant: null,
     };
   }
 
@@ -123,10 +112,12 @@ export class AuthService {
         name: user.name,
         role: user.role,
       },
-      tenant: {
-        id: user.tenant.id,
-        name: user.tenant.name,
-      },
+      tenant: user.tenant
+        ? {
+            id: user.tenant.id,
+            name: user.tenant.name,
+          }
+        : null,
     };
   }
 
@@ -147,16 +138,77 @@ export class AuthService {
         name: user.name,
         role: user.role,
       },
+      tenant: user.tenant
+        ? {
+            id: user.tenant.id,
+            name: user.tenant.name,
+            email: user.tenant.email,
+            phone: user.tenant.phone,
+            address: user.tenant.address,
+            taxOffice: user.tenant.taxOffice,
+            taxNumber: user.tenant.taxNumber,
+            iban: user.tenant.iban,
+            logoUrl: user.tenant.logoUrl,
+          }
+        : null,
+    };
+  }
+
+  async completeOnboarding(userId: string, dto: { name: string; tenantName: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Kullanıcı bulunamadı.');
+    }
+
+    if (user.tenantId) {
+      throw new BadRequestException('Bu kullanıcı için zaten bir firma kurulu.');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Tenant oluştur
+      const tenant = await tx.tenant.create({
+        data: {
+          name: dto.tenantName,
+          email: user.email,
+        },
+      });
+
+      // 2. Kullanıcıyı bu tenant'a bağla ve ismini güncelle
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: {
+          name: dto.name,
+          tenantId: tenant.id,
+        },
+      });
+
+      return { tenant, user: updatedUser };
+    });
+
+    // Güncel token üret
+    const payload = {
+      sub: result.user.id,
+      email: result.user.email,
+      tenantId: result.tenant.id,
+      role: result.user.role,
+    };
+
+    const token = this.jwtService.sign(payload);
+
+    return {
+      token,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        name: result.user.name,
+        role: result.user.role,
+      },
       tenant: {
-        id: user.tenant.id,
-        name: user.tenant.name,
-        email: user.tenant.email,
-        phone: user.tenant.phone,
-        address: user.tenant.address,
-        taxOffice: user.tenant.taxOffice,
-        taxNumber: user.tenant.taxNumber,
-        iban: user.tenant.iban,
-        logoUrl: user.tenant.logoUrl,
+        id: result.tenant.id,
+        name: result.tenant.name,
       },
     };
   }

@@ -26,6 +26,11 @@ export class AccountsController {
     return this.accountsService.createBulk(dtos, tenantId);
   }
 
+  @Get('stats')
+  getStats(@TenantId() tenantId: string) {
+    return this.accountsService.getStats(tenantId);
+  }
+
   @Get()
   findAll(
     @TenantId() tenantId: string,
