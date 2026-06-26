@@ -1,5 +1,8 @@
 import os
 os.environ["FLAGS_use_onednn"] = "0"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 
 import numpy as np
 # Monkey patch for imgaug compatibility with numpy 2.0
@@ -21,8 +24,7 @@ os.environ["ONEDNN_PRIMITIVE_CACHE_CAPACITY"] = "0"
 import cv2
 from paddleocr import PaddleOCR
 
-# lang="en" vererek en kararli ve yuksek dogruluklu modelimizi kullaniyoruz
-ocr = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=False)
+ocr = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=False, cpu_threads=1, ocr_version="PP-OCRv4")
 
 import glob
 import re
@@ -49,6 +51,10 @@ image_files = glob.glob("ornekocretiketleri/*.jpeg") + glob.glob("ornekocretiket
 for img_path in image_files:
     print(f"\n========================================\nDOSYA: {img_path}\n========================================")
     img = cv2.imread(img_path)
+    print(f"Resim yuklendi mi? {img is not None}")
+    if img is None:
+        print("HATA: Resim okunamadi!")
+        continue
     result = ocr.ocr(img)
     
     raw_texts = []

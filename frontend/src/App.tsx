@@ -13,6 +13,7 @@ import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
 import Finance from './pages/Finance';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Onboarding from './pages/Onboarding';
 
 
@@ -23,6 +24,7 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
           {/* Protected App Routes */}
           <Route element={<ProtectedRoute />}>

@@ -1,6 +1,14 @@
 import './style.css';
 
+// API ve ERP URL'lerini ortama göre dinamik belirle
+// Üretimde .env ile override edilebilir, geliştirmede otomatik çalışır
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+
+// ERP uygulaması bu marketing sitesiyle aynı ngrok domain'ini paylaşıyor:
+// marketing: port 4000 → ngrok-free.dev
+// frontend:  port 5173 → aynı veya farklı ngrok URL (ücretsiz hesapta aynı)
+// Ngrok üzerinden açıldığında tarayıcı aynı domain'dedir, sadece portu değiştirmek yeterli değil.
+// Bu yüzden frontend URL'sini de env ile ayarlıyoruz.
 const ERP_APP_URL = import.meta.env.VITE_ERP_APP_URL || 'http://localhost:5173/login';
 
 // Router setup

@@ -1,0 +1,7 @@
+{
+  "venvPath": "c:/Users/ouz/Desktop/fabricerp",
+  "venv": ".venv",
+  "extraPaths": [
+    "c:/Users/ouz/Desktop/fabricerp/.venv/Lib/site-packages"
+  ]
+}

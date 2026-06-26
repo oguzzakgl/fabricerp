@@ -13,11 +13,22 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import axios from 'axios';
 import { RollsService } from './rolls.service';
 import { CreateRollDto } from './dto/create-roll.dto';
 import { UpdateRollDto } from './dto/update-roll.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantId } from '../auth/tenant-id.decorator';
+
+interface OcrResponse {
+  fabricType: string;
+  lengthM: number;
+  netWeightKg: number;
+  colorCode: string;
+  quality: string;
+  rawText: string;
+  error?: string;
+}
 
 @UseGuards(JwtAuthGuard)
 @Controller('rolls')
@@ -26,37 +37,57 @@ export class RollsController {
 
   @Post('ocr')
   @UseInterceptors(FileInterceptor('file'))
-  async doOcr(@UploadedFile() file: any) {
+  async doOcr(
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<OcrResponse | { error: string }> {
+    console.log(
+      '[doOcr] İstek alındı. Dosya adı:',
+      file?.originalname,
+      'Boyut:',
+      file?.size,
+    );
     if (!file) {
+      console.log('[doOcr] Hata: Dosya yüklenmedi.');
       return { error: 'Dosya yüklenmedi.' };
     }
 
     try {
+      console.log('[doOcr] Blob oluşturuluyor...');
       const formData = new FormData();
-      const blob = new Blob([file.buffer], { type: file.mimetype });
+      const blob = new Blob([new Uint8Array(file.buffer)], {
+        type: file.mimetype,
+      });
       formData.append('file', blob, file.originalname);
+      console.log('[doOcr] Blob oluşturuldu.');
 
       const ocrUrl = process.env.OCR_SERVICE_URL || 'http://127.0.0.1:8000/ocr';
-      const response = await fetch(ocrUrl, {
-        method: 'POST',
-        body: formData,
+      console.log('[doOcr] OCR Servisine istek atılıyor:', ocrUrl);
+
+      const response = await axios.post(ocrUrl, formData, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Content-Type': 'multipart/form-data',
+        },
       });
+      console.log('[doOcr] OCR yanıtı alındı, HTTP Status:', response.status);
 
-      if (!response.ok) {
-        throw new Error(`FastAPI servisi hata döndü: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = response.data as OcrResponse;
+      console.log(
+        '[doOcr] OCR işlemi başarıyla tamamlandı. Sonuç:',
+        data.fabricType,
+      );
       return data;
-    } catch (err) {
-      console.error('NestJS OCR Forwarding Hatası:', err);
+    } catch (err: unknown) {
+      console.error('[doOcr] Hata oluştu:', err);
+      const errorMessage =
+        err instanceof Error ? err.message : 'Bilinmeyen hata';
       return {
         fabricType: 'Bilinmeyen Kumaş',
         lengthM: 0,
         netWeightKg: 0,
         colorCode: '',
         quality: '1',
-        error: err.message,
+        error: errorMessage,
       };
     }
   }
@@ -81,7 +112,14 @@ export class RollsController {
   ) {
     const includeRecipeBool = includeRecipe === 'true';
     return this.rollsService.findAll(
-      { page, limit, search, status, quality, includeRecipe: includeRecipeBool },
+      {
+        page,
+        limit,
+        search,
+        status,
+        quality,
+        includeRecipe: includeRecipeBool,
+      },
       tenantId,
     );
   }

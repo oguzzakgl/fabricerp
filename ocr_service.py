@@ -1,7 +1,15 @@
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["FLAGS_use_onednn"] = "0"
 os.environ["FLAGS_use_mkldnn"] = "0"
-os.environ["ONEDNN_PRIMITIVE_CACHE_CAPACITY"] = "0"
+os.environ["PADDLE_DISABLE_ONEDNN"] = "1"
+os.environ["FLAGS_prim_enable_dynamic"] = "1"
+os.environ["FLAGS_enable_pir_api"] = "0"
 
 import numpy as np
 # Monkey patch for imgaug compatibility with numpy 2.0
@@ -24,6 +32,10 @@ import difflib
 
 app = FastAPI(title="Fabric ERP PaddleOCR Service")
 
+@app.get("/")
+def read_root():
+    return {"status": "running", "service": "Fabric ERP PaddleOCR Service"}
+
 # CORS izinleri
 app.add_middleware(
     CORSMiddleware,
@@ -33,17 +45,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# PaddleOCR modelini RAM'de bir kez yüklüyoruz (en diliyle)
+# PaddleOCR modelini RAM'de bir kez yüklüyoruz
 ocr = PaddleOCR(
-    use_angle_cls=False, 
-    lang="en", 
-    enable_mkldnn=False,
-    det_limit_side_len=960,
-    cpu_threads=6
+    lang="en",
+    ocr_version="PP-OCRv4",
+    use_textline_orientation=False,
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    text_det_limit_side_len=960,
+    cpu_threads=1,
+    device="cpu",
+    enable_mkldnn=False
 )
 
 # Bilinen kumaş listesi (Fuzzy Matching için)
-KNOWN_FABRICS = ["RONA", "CROC", "CORES", "SÜPREM", "SUPREM", "İKİ İPLİK", "IKI IPLIK", "ÜÇ İPLİK", "UC IPLIK", "KAŞKORSE", "KASKORSE", "RİBANA", "RIBANA", "İNTERLOK", "INTERLOK"]
+KNOWN_FABRICS = ["RONA", "CROC", "CORES", "SÜPREM", "SUPREM", "İKİ İPLİK", "IKI IPLIK", "ÜÇ İPLİK", "UC IPLIK", "KAŞKORSE", "KASKORSE", "RİBANA", "RIBANA", "İNTERLOK", "INTERLOK", "EN LYCRA"]
 
 def get_fuzzy_fabric_name(detected_name: str) -> str:
     if not detected_name:
@@ -95,66 +111,61 @@ def parse_decimal_string(str_val: str, max_limit: float) -> float:
         
     return round(val, 2)
 
-def resize_if_needed(img_np, target_width=1500):
+def resize_if_needed(img_np, target_width=1000):
     h, w = img_np.shape[:2]
-    if w < target_width:
+    if w > target_width:
         scale = target_width / w
         new_h = int(h * scale)
-        resized = cv2.resize(img_np, (target_width, new_h), interpolation=cv2.INTER_CUBIC)
+        resized = cv2.resize(img_np, (target_width, new_h), interpolation=cv2.INTER_AREA)
         return resized
     return img_np
 
-def deskew_image(img_np):
-    gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-    lines = cv2.HoughLinesP(edges, 1, np.pi/180, 100, minLineLength=100, maxLineGap=10)
-    
-    angles = []
-    if lines is not None:
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            angle = np.arctan2(y2 - y1, x2 - x1) * 180 / np.pi
-            if -45 < angle < 45:
-                angles.append(angle)
-                
-    if len(angles) > 0:
-        median_angle = np.median(angles)
-        if abs(median_angle) > 1.0:
-            (h, w) = img_np.shape[:2]
-            center = (w // 2, h // 2)
-            M = cv2.getRotationMatrix2D(center, median_angle, 1.0)
-            rotated = cv2.warpAffine(img_np, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-            return rotated
-    return img_np
-
 def preprocess_image(img_np):
-    # Gri tonlama
     gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-    # CLAHE kontrast artırma
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     gray = clahe.apply(gray)
-    # Gürültü temizleme
     gray = cv2.medianBlur(gray, 3)
-    # Keskinleştirme
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     sharpened = cv2.filter2D(gray, -1, kernel)
     return cv2.cvtColor(sharpened, cv2.COLOR_GRAY2BGR)
 
-def calculate_average_confidence(ocr_result):
-    if not ocr_result or not ocr_result[0]:
-        return 0.0
-    scores = []
-    for line in ocr_result[0]:
-        score = line[1][1]
-        scores.append(score)
-    return np.mean(scores) if scores else 0.0
+def run_ocr_predict(img_np):
+    print("FastAPI: ocr.predict() basliyor...")
+    result = ocr.predict(img_np)
+    print("FastAPI: ocr.predict() tamamlandi.")
+    raw_texts = []
+    if result:
+        for page_result in result:
+            if page_result is None:
+                continue
+            if isinstance(page_result, dict):
+                rec_texts = page_result.get("rec_texts", [])
+                for t in rec_texts:
+                    if t and t.strip():
+                        raw_texts.append(t.strip())
+            elif isinstance(page_result, list):
+                for item in page_result:
+                    if isinstance(item, dict):
+                        rec_texts = item.get("rec_texts", [])
+                        for t in rec_texts:
+                            if t and t.strip():
+                                            raw_texts.append(t.strip())
+                    elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                        text_info = item[1]
+                        if isinstance(text_info, (list, tuple)):
+                            raw_texts.append(str(text_info[0]).strip())
+                        else:
+                            raw_texts.append(str(text_info).strip())
+    return raw_texts
 
 @app.post("/ocr")
-async def do_ocr(file: UploadFile = File(...)):
-    # Resmi oku
-    contents = await file.read()
+def do_ocr(file: UploadFile = File(...)):
+    print(f"FastAPI: Istek alindi. Dosya adi: {file.filename}")
+    contents = file.file.read()
+    print(f"FastAPI: Dosya okundu. Boyut: {len(contents)} byte")
     nparr = np.frombuffer(contents, np.uint8)
     img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    print("FastAPI: cv2 imdecode tamamlandi.")
     
     if img_np is None:
         return {
@@ -166,32 +177,22 @@ async def do_ocr(file: UploadFile = File(...)):
             "rawText": "HATA: Görsel kodu çözülemedi."
         }
     
-    # 1. Görüntüyü Düzleştir (Deskew) ve Ölçeklendir (Resize)
-    img_processed = deskew_image(img_np)
-    img_processed = resize_if_needed(img_processed, 1500)
-    
-    # 2. Ön işlenmiş (Preprocessed) sürümünü oluştur
+    img_processed = resize_if_needed(img_np, 1500)
     img_enhanced = preprocess_image(img_processed)
     
-    # 3. Paralel OCR Analizi
-    result_orig = ocr.ocr(img_processed)
-    result_enh = ocr.ocr(img_enhanced)
+    raw_texts_orig = run_ocr_predict(img_processed)
+    raw_texts_enh = run_ocr_predict(img_enhanced)
     
-    conf_orig = calculate_average_confidence(result_orig)
-    conf_enh = calculate_average_confidence(result_enh)
+    print(f"Orijinal metin sayısı: {len(raw_texts_orig)}, Ön işlenmiş: {len(raw_texts_enh)}")
     
-    print(f"Orijinal Görüntü Güven Skoru: {conf_orig:.4f}")
-    print(f"Ön İşlenmiş Görüntü Güven Skoru: {conf_enh:.4f}")
-    
-    # En yüksek güven skoruna sahip olan sonucu seç
-    if conf_enh > conf_orig and result_enh and result_enh[0]:
-        result = result_enh
+    if len(raw_texts_enh) >= len(raw_texts_orig):
+        raw_texts = raw_texts_enh
         print("-> Ön işlenmiş görüntü sonucu seçildi.")
     else:
-        result = result_orig
-        print("-> Orijinal/Düzleştirilmiş görüntü sonucu seçildi.")
-        
-    if not result or not result[0]:
+        raw_texts = raw_texts_orig
+        print("-> Orijinal görüntü sonucu seçildi.")
+    
+    if not raw_texts:
         return {
             "fabricType": "Bilinmeyen Kumaş",
             "lengthM": 0.0,
@@ -201,12 +202,6 @@ async def do_ocr(file: UploadFile = File(...)):
             "rawText": ""
         }
         
-    # Tüm okunan metinleri birleştirelim
-    raw_texts = []
-    for line in result[0]:
-        text_val = line[1][0]
-        raw_texts.append(text_val)
-        
     full_text = "\n".join(raw_texts)
     print("PaddleOCR Okunan Ham Metin:\n", full_text)
     
@@ -214,24 +209,23 @@ async def do_ocr(file: UploadFile = File(...)):
     detected_fabric = ""
     for idx, text in enumerate(raw_texts):
         clean_text = text.strip()
-        # İki nokta üst üste zorunlu ve sonrasında alfabetik karakterler alan regex
-        # Örn: KALİTE: RONA veya KALİTE : RONA
-        if re.search(r'\b(?:KALİTE|KALITE|QUALITY|KUMAS|KUMAŞ)\s*[:]\s*', clean_text, re.IGNORECASE) and not re.search(r'\bNO\b', clean_text, re.IGNORECASE):
-            val_match = re.search(r'(?:KALİTE|KALITE|QUALITY|KUMAS|KUMAŞ)\s*[:]\s*([A-Za-zĞÜŞÖÇİğüşöçı\s]+)', clean_text, re.IGNORECASE)
+        # İki nokta üst üste zorunlu olmayan esnek regex
+        if re.search(r'\b(?:KALİTE|KALITE|QUALITY|KUMAS|KUMAŞ|CUMAS|CUMAŞ)\b', clean_text, re.IGNORECASE) and not re.search(r'\bNO\b', clean_text, re.IGNORECASE):
+            val_match = re.search(r'(?:KALİTE|KALITE|QUALITY|KUMAS|KUMAŞ|CUMAS|CUMAŞ)\s*[:\-]?\s*([A-Za-zĞÜŞÖÇİğüşöçı\s]+)', clean_text, re.IGNORECASE)
             if val_match and val_match.group(1).strip():
                 val = val_match.group(1).strip()
-                if not val.isdigit() and len(val) > 2 and "LYCRA" not in val.upper():
+                if not val.isdigit() and len(val) > 2:
                     detected_fabric = val
                     break
             
-            # Alt satırlara bak
-            for offset in range(1, 3):
+            # Alt satırlara bak (iki nokta üst üste alt satırda olabilir)
+            for offset in range(1, 4):
                 if idx + offset < len(raw_texts):
                     next_line = raw_texts[idx + offset].strip()
-                    next_line_clean = re.sub(r'^[:\-]+', '', next_line).strip()
+                    next_line_clean = re.sub(r'^[:\-\s]+', '', next_line).strip()
                     if next_line_clean and not next_line_clean.isdigit():
                         upper_line = next_line_clean.upper()
-                        if not any(kwd in upper_line for kwd in ["KALITE", "COLOR", "KUMAS", "PARTI", "TOPNO", "MAMUL", "ISLETME", "LYCRA"]):
+                        if not any(kwd in upper_line for kwd in ["KALITE", "KALİTE", "COLOR", "COL", "RENK", "KUMAS", "KUMAŞ", "PARTI", "PARTİ", "TOPNO", "TOP NO", "TOP_NO", "NO", "MAMUL", "ISLETME", "İŞLETME"]):
                             detected_fabric = next_line_clean
                             break
             if detected_fabric:
@@ -244,21 +238,20 @@ async def do_ocr(file: UploadFile = File(...)):
             clean_alpha = re.sub(r'[^a-zA-ZğüşöçİĞÜŞÖÇ\s]', '', clean).strip()
             if len(clean_alpha) >= 3:
                 upper_clean = clean.upper()
-                if not any(kwd in upper_clean for kwd in ["KALITE", "COLOR", "KUMAS", "PARTI", "TOPNO", "MAMUL", "ISLETME", "EDILMEZ", "REKLAM", "MALDAN", "KESILEN", "LYCRA", "MT", "KG"]):
+                if not any(kwd in upper_clean for kwd in ["KALITE", "KALİTE", "COLOR", "COL", "RENK", "KUMAS", "KUMAŞ", "PARTI", "PARTİ", "TOPNO", "TOP NO", "TOP_NO", "NO", "MAMUL", "ISLETME", "İŞLETME", "EDILMEZ", "EDİLMEZ", "REKLAM", "MALDAN", "KESILEN", "KESİLEN", "MT", "KG", "KILO"]):
                     if not re.search(r'\d', clean) and not any(u in upper_clean for u in ["MT", "KG", "KILO"]):
                         detected_fabric = clean
                         break
                         
-    # Fuzzy Matching ile Kumaş Adını Düzelt
     if detected_fabric:
         detected_fabric = get_fuzzy_fabric_name(detected_fabric)
     
-    # 2. Metre ve Ağırlık Ayıklama (\b kelime sınırları ile)
+    # 2. Metre ve Ağırlık Ayıklama (Kelime sınırı \b olmadan)
     detected_length = 0.0
     detected_weight = 0.0
     
-    length_match = re.search(r'\b(\d+(?:[.,]\d+)?)\s*(?:Mt|mt|M|m|MI|Nt|nt|t|ME|Mf|MC|Me|MD|MT|Mt\.)\b', full_text, re.IGNORECASE)
-    weight_match = re.search(r'\b(\d+(?:[.,]\d+)?)\s*(?:Kg|kg|Kilo|kilo|Kq|kq|Ky|ky|K9|K:|K|KG)\b', full_text, re.IGNORECASE)
+    length_match = re.search(r'(\d+(?:[.,]\d+)?)\s*(?:Mt|mt|M|m|MI|Nt|nt|t|ME|Mf|MC|Me|MD|MT|Mt\.)', full_text, re.IGNORECASE)
+    weight_match = re.search(r'(\d+(?:[.,]\d+)?)\s*(?:Kg|kg|Kilo|kilo|Kq|kq|Ky|ky|K9|K:|K|KG)', full_text, re.IGNORECASE)
     
     if length_match:
         detected_length = parse_decimal_string(length_match.group(1), 150.0)
@@ -285,25 +278,16 @@ async def do_ocr(file: UploadFile = File(...)):
         elif len(decimal_numbers) == 1:
             if detected_length == 0.0: detected_length = decimal_numbers[0]
 
-    # Post-Processing Mantıksal Doğrulama
-    # Metre başına ağırlık kontrolü (Kg/M oranı)
-    if detected_length > 0.0 and detected_weight > 0.0:
-        kg_per_m = detected_weight / detected_length
-        if kg_per_m < 0.05 or kg_per_m > 1.50:
-            print(f"UYARI: Metre/Ağırlık oranı tutarsız! Gelen oran: {kg_per_m:.4f} kg/m. (Metre: {detected_length}, Ağırlık: {detected_weight})")
-
     if detected_length > 150.0: detected_length = 0.0
     if detected_weight > 50.0: detected_weight = 0.0
     
     # 3. Renk Numarası Tespiti (Herhangi bir sayısal kod)
     detected_color_num = ""
     
-    # Öncelikle tek satırda esnek ayraçlı eşleşmeleri ara
     color_line_match = re.search(r'(?:COLOR|COL|Renk|Color|Col|Cor|CO|CL|CR)\s*[:.\s-]*(\d+)\b', full_text, re.IGNORECASE)
     if color_line_match:
         detected_color_num = color_line_match.group(1)
             
-    # Eğer tek satırda bulunamadıysa, satır bazlı analiz yapalım
     if not detected_color_num:
         for idx, text in enumerate(raw_texts):
             clean_text = text.strip()
@@ -313,11 +297,9 @@ async def do_ocr(file: UploadFile = File(...)):
                     detected_color_num = val_match.group(1)
                     break
                 
-                # Alt satırlara bak (maksimum 5 satır aşağı in)
                 for offset in range(1, 6):
                     if idx + offset < len(raw_texts):
                         next_line = raw_texts[idx + offset].strip()
-                        # Kelime filtresi: Rakam yoksa ve alfabetik karakter sayısı 1'den büyükse pas geç
                         if not re.search(r'\d', next_line) and len(re.sub(r'[^a-zA-Z]', '', next_line)) > 1:
                             continue
                         next_line_clean = re.sub(r'^[:.\s-]+', '', next_line).strip()
@@ -327,6 +309,18 @@ async def do_ocr(file: UploadFile = File(...)):
                             break
                 if detected_color_num:
                     break
+                    
+    # Fallback Renk Kodu: Metnin en başında duran 3 haneli bağımsız bir sayı varsa (Örn: 055)
+    if not detected_color_num:
+        # Metindeki tüm 2-3 haneli bağımsız sayıları bul (örn: '055')
+        numbers = re.findall(r'\b\d{2,3}\b', full_text)
+        for num in numbers:
+            num_clean = num.strip()
+            # Bu sayı metre veya ağırlık veya top no olarak eşleşmemiş olsun
+            val_f = float(num_clean)
+            if val_f != detected_length and val_f != detected_weight and num_clean != "150" and num_clean != "1":
+                detected_color_num = num_clean
+                break
 
     return {
         "fabricType": detected_fabric or "Bilinmeyen Kumaş",
