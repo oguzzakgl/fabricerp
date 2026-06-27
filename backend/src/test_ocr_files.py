@@ -1,4 +1,4 @@
-import requests
+import requests  # type: ignore
 import os
 
 url = "http://127.0.0.1:8000/ocr"

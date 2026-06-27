@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertFabricCardDto } from './dto/upsert-fabric-card.dto';
 
@@ -20,13 +21,16 @@ export class FabricCardsService {
         fabricType: fabricType.trim(),
         pricePerMeter: pricePerMeter ?? 0,
         imageUrl: imageUrl ?? null,
-        colorMapping: colorMapping ?? {},
+        colorMapping: (colorMapping as Prisma.InputJsonValue) ?? {},
         tenantId,
       },
       update: {
         pricePerMeter: pricePerMeter !== undefined ? pricePerMeter : undefined,
         imageUrl: imageUrl !== undefined ? imageUrl : undefined,
-        colorMapping: colorMapping !== undefined ? colorMapping : undefined,
+        colorMapping:
+          colorMapping !== undefined
+            ? (colorMapping as Prisma.InputJsonValue)
+            : undefined,
       },
     });
   }

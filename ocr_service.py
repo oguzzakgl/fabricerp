@@ -1,4 +1,11 @@
 import os
+from dotenv import load_dotenv
+dotenv_path = os.path.join(os.path.dirname(__file__), "backend", ".env")
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path)
+else:
+    load_dotenv()
+
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -14,21 +21,25 @@ os.environ["FLAGS_enable_pir_api"] = "0"
 import numpy as np
 # Monkey patch for imgaug compatibility with numpy 2.0
 if not hasattr(np, "sctypes"):
-    np.sctypes = {
+    setattr(np, "sctypes", {
         "float": [np.float16, np.float32, np.float64],
         "int": [np.int8, np.int16, np.int32, np.int64],
         "uint": [np.uint8, np.uint16, np.uint32, np.uint64],
         "bool": [bool]
-    }
+    })
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from paddleocr import PaddleOCR
+from typing import Optional
 import uvicorn
 import io
 import re
 import cv2
 import difflib
+import google.generativeai as genai
+from pydantic import BaseModel, Field
+import json
 
 app = FastAPI(title="Fabric ERP PaddleOCR Service")
 
@@ -45,18 +56,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# PaddleOCR modelini RAM'de bir kez yüklüyoruz
-ocr = PaddleOCR(
-    lang="en",
-    ocr_version="PP-OCRv4",
-    use_textline_orientation=False,
-    use_doc_orientation_classify=False,
-    use_doc_unwarping=False,
-    text_det_limit_side_len=960,
-    cpu_threads=1,
-    device="cpu",
-    enable_mkldnn=False
-)
+# Gemini API Yapılandırması
+gemini_api_key = os.environ.get("GEMINI_API_KEY")
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
+
+class FabricOcrResult(BaseModel):
+    fabricType: str = Field(description="Kumaş türü/adı (Örn: Rona, Croc, Ribana, İki İplik vb.). En uygun bilinen kumaş adını fuzzy match ederek veya doğrudan eşleştirerek belirle.")
+    lengthM: float = Field(description="Metre cinsinden kumaş uzunluğu (ondalıklı sayı, Örn: 100.5, 45.2). Eğer bulunamazsa 0.0.")
+    netWeightKg: float = Field(description="Kilogram cinsinden kumaş ağırlığı (ondalıklı sayı, Örn: 22.4, 15.0). Eğer bulunamazsa 0.0.")
+    colorCode: str = Field(description="Renk kodu veya numarası (Örn: 055, 1024, 7). Eğer bulunamazsa boş string.")
+    quality: str = Field(description="Kumaş kalitesi (varsayılan olarak '1'). Eğer bulunamazsa '1'.")
+
+# PaddleOCR Lazy-Loading yapısı
+_ocr_model = None
+
+def get_paddle_ocr():
+    global _ocr_model
+    if _ocr_model is None:
+        print("PaddleOCR: Model RAM'e yukleniyor (Lazy-loading)...")
+        _ocr_model = PaddleOCR(
+            lang="en",
+            ocr_version="PP-OCRv4",
+            use_textline_orientation=False,
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            text_det_limit_side_len=960,
+            cpu_threads=1,
+            device="cpu",
+            enable_mkldnn=False
+        )
+    return _ocr_model
 
 # Bilinen kumaş listesi (Fuzzy Matching için)
 KNOWN_FABRICS = ["RONA", "CROC", "CORES", "SÜPREM", "SUPREM", "İKİ İPLİK", "IKI IPLIK", "ÜÇ İPLİK", "UC IPLIK", "KAŞKORSE", "KASKORSE", "RİBANA", "RIBANA", "İNTERLOK", "INTERLOK", "EN LYCRA"]
@@ -131,7 +161,8 @@ def preprocess_image(img_np):
 
 def run_ocr_predict(img_np):
     print("FastAPI: ocr.predict() basliyor...")
-    result = ocr.predict(img_np)
+    ocr_instance = get_paddle_ocr()
+    result = ocr_instance.predict(img_np)
     print("FastAPI: ocr.predict() tamamlandi.")
     raw_texts = []
     if result:
@@ -159,10 +190,62 @@ def run_ocr_predict(img_np):
     return raw_texts
 
 @app.post("/ocr")
-def do_ocr(file: UploadFile = File(...)):
+def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None)):
     print(f"FastAPI: Istek alindi. Dosya adi: {file.filename}")
     contents = file.file.read()
     print(f"FastAPI: Dosya okundu. Boyut: {len(contents)} byte")
+    
+    ocr_engine = os.environ.get("OCR_ENGINE", "gemini").lower()
+    
+    # Veritabanından gelen kumaş listesini prompt kuralına dönüştür
+    fabric_list_instruction = ""
+    if fabric_types:
+        try:
+            fabric_list = json.loads(fabric_types)
+            if fabric_list and isinstance(fabric_list, list):
+                fabric_list_instruction = (
+                    f"\nKRİTİK KURAL - kumaş türünü (fabricType) SADECE şu listede yer alan kayıtlı kumaş isimlerinden biriyle birebir eşleştirerek (veya en yakın olanına benzeterek) döndür:\n"
+                    f"Kayıtlı Kumaş Listesi: {fabric_list}\n"
+                    "Listede olmayan hiçbir kumaş ismini döndürme. Eğer etiket üzerindeki kumaş adı bu listedeki hiçbir isimle makul ölçüde benzer değilse 'Bilinmeyen Kumaş' döndür."
+                )
+        except Exception as e:
+            print(f"HATA: fabric_types parse edilemedi: {e}")
+    
+    if ocr_engine == "gemini" and gemini_api_key:
+        try:
+            print("FastAPI: Gemini Multimodal analizi basliyor...")
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(
+                [
+                    {"mime_type": file.content_type or "image/jpeg", "data": contents},
+                    "Sen tekstil etiketlerini analiz eden uzman bir yapay zekasın. Görseldeki etiket bilgilerini şu kurallara göre ayıkla:\n"
+                    "1. fabricType (Kumaş Türü): Etiket üzerindeki 'KALİTE' (KALITE) ve 'KUMAŞ ADI' (KUMAS ADI) alanlarının her ikisini de oku. Bu iki alandan hangisi asıl kumaş ismini/cinsini (Örn: RONA, CROC, COSMOS, MINAR, SÜPREM, İKİ İPLİK, RİBANA, KAŞKORSE, İNTERLOK vb.) içeriyorsa o değeri seç. 'EN LYCRA', 'LYCRA', 'LIKRA' gibi esneklik belirten genel ifadeler yerine, spesifik kumaş türünü (Örn: RONA, COSMOS veya SÜPREM) tercih et."
+                    f"{fabric_list_instruction}\n"
+                    "2. colorCode (Renk Kodu): Genellikle etiket üzerinde yer alan mavi daire çıkartmanın içindeki 'COLOR' yazısının hemen altındaki büyük sayıdır. KRİTİK KURAL: Renk kodu SADECE 1 ile 13 (dahil) arasındaki tam sayılar olabilir (Örn: 1, 2, 3, 10, 13). 13'ten büyük sayıları veya 3 haneli sayıları (Örn: 055) kesinlikle renk kodu olarak alma. Eğer bu aralıkta (1-13) geçerli bir sayı bulunamazsa boş string döndür.\n"
+                    "3. lengthM (Metre): Etiketin üst/yan kısmında dikey veya yatay olarak 'Mt' veya 'M' birimiyle yazan sayıyı al (Örn: 89.50, 73.90).\n"
+                    "4. netWeightKg (Net Ağırlık): Etikette 'Kg' veya 'KG' birimiyle yazan net ağırlık değerini al (Örn: 25.30, 27.70).\n"
+                    "5. quality (Kalite): Etikette kalite sınıfı belirtilmişse yaz (Varsayılan olarak '1')."
+                ],
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=FabricOcrResult,
+                ),
+                request_options={"timeout": 30.0}
+            )
+            result_data = json.loads(response.text)
+            print("FastAPI: Gemini Analizi Basarili:", result_data)
+            return {
+                "fabricType": result_data.get("fabricType") or "Bilinmeyen Kumaş",
+                "lengthM": float(result_data.get("lengthM") or 0.0),
+                "netWeightKg": float(result_data.get("netWeightKg") or 0.0),
+                "colorCode": str(result_data.get("colorCode") or ""),
+                "quality": str(result_data.get("quality") or "1"),
+                "rawText": f"Gemini API Analiz Sonucu\n{response.text}"
+            }
+        except Exception as e:
+            print(f"HATA: Gemini API analizi sirasinda hata olustu: {e}")
+            print("FastAPI: Otomatik olarak PaddleOCR fallback moduna geciliyor...")
+            
     nparr = np.frombuffer(contents, np.uint8)
     img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     print("FastAPI: cv2 imdecode tamamlandi.")

@@ -14,5 +14,5 @@ export class UpsertFabricCardDto {
 
   @IsObject()
   @IsOptional()
-  colorMapping?: any;
+  colorMapping?: Record<string, unknown>;
 }

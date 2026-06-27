@@ -4,15 +4,18 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 import numpy as np
 # Monkey patch for imgaug compatibility with numpy 2.0
 if not hasattr(np, "sctypes"):
-    np.sctypes = {
+    setattr(np, "sctypes", {
         "float": [np.float16, np.float32, np.float64],
         "int": [np.int8, np.int16, np.int32, np.int64],
         "uint": [np.uint8, np.uint16, np.uint32, np.uint64],
         "bool": [bool]
-    }
+    })
 
 # Disable MKLDNN/OneDNN to prevent fused_conv2d error on Windows CPU
 os.environ["FLAGS_use_onednn"] = "0"
@@ -55,7 +58,7 @@ for img_path in image_files:
     if img is None:
         print("HATA: Resim okunamadi!")
         continue
-    result = ocr.ocr(img)
+    result = ocr.ocr(img)  # type: ignore
     
     raw_texts = []
     if result and result[0]:

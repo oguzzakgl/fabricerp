@@ -9,7 +9,7 @@ async function main() {
     console.error('DATABASE_URL is not set!');
     process.exit(1);
   }
-  
+
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });
@@ -19,7 +19,9 @@ async function main() {
     const invites = await prisma.inviteCode.findMany();
     console.log('--- INVITE CODES ---');
     invites.forEach((inv) => {
-      console.log(`Code: ${inv.code} | Used: ${inv.isUsed} | Used At: ${inv.usedAt}`);
+      console.log(
+        `Code: ${inv.code} | Used: ${inv.isUsed} | Used At: ${inv.usedAt ? inv.usedAt.toISOString() : 'null'}`,
+      );
     });
   } catch (err) {
     console.error(err);
@@ -29,4 +31,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

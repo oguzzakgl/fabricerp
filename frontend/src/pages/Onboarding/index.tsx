@@ -32,9 +32,12 @@ const Onboarding: React.FC = () => {
       
       // Onboarding tamamlandıktan sonra paneli aç
       navigate('/dashboard');
-    } catch (err: any) {
-      console.error('Onboarding error:', err);
-      const msg = err.response?.data?.message || 'Kurulum tamamlanamadı. Lütfen daha sonra tekrar deneyin.';
+    } catch (err) {
+      const error = err as { response?: { data?: { message?: string } } };
+      console.error('Onboarding error:', error);
+      const msg =
+        error.response?.data?.message ||
+        'Kurulum tamamlanamadı. Lütfen daha sonra tekrar deneyin.';
       setError(msg);
     } finally {
       setLoading(false);

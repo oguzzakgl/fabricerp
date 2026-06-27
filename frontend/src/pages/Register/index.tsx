@@ -41,10 +41,12 @@ const Register: React.FC = () => {
         login(token, user, tenant);
         navigate('/dashboard');
       }, 1500);
-    } catch (err: any) {
-      console.error('Register error:', err);
+    } catch (err) {
+      const error =
+        err as { response?: { data?: { message?: string | string[] } } };
+      console.error('Register error:', error);
       const msg =
-        err.response?.data?.message ||
+        error.response?.data?.message ||
         'Kayıt olurken bir hata oluştu. Lütfen bilgilerinizi kontrol edin.';
       setError(Array.isArray(msg) ? msg.join(', ') : msg);
     } finally {

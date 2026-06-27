@@ -15,8 +15,8 @@ const Login: React.FC = () => {
     const queryParams = new URLSearchParams(window.location.search);
     const queryToken = queryParams.get('token');
     if (queryToken) {
-      setLoading(true);
       const fetchUserData = async () => {
+        setLoading(true);
         try {
           // Store token in localStorage immediately so request interceptor and subsequent calls use it
           localStorage.setItem('token', queryToken);
@@ -58,9 +58,12 @@ const Login: React.FC = () => {
       const { token, user, tenant } = response.data;
       login(token, user, tenant);
       navigate('/dashboard');
-    } catch (err: any) {
-      console.error('Login error:', err);
-      const msg = err.response?.data?.message || 'Giriş yapılamadı. Lütfen e-posta ve şifrenizi kontrol edin.';
+    } catch (err) {
+      const error = err as { response?: { data?: { message?: string } } };
+      console.error('Login error:', error);
+      const msg =
+        error.response?.data?.message ||
+        'Giriş yapılamadı. Lütfen e-posta ve şifrenizi kontrol edin.';
       setError(msg);
     } finally {
       setLoading(false);

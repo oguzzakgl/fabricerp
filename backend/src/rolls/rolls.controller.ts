@@ -19,6 +19,7 @@ import { CreateRollDto } from './dto/create-roll.dto';
 import { UpdateRollDto } from './dto/update-roll.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantId } from '../auth/tenant-id.decorator';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface OcrResponse {
   fabricType: string;
@@ -33,12 +34,16 @@ interface OcrResponse {
 @UseGuards(JwtAuthGuard)
 @Controller('rolls')
 export class RollsController {
-  constructor(private readonly rollsService: RollsService) {}
+  constructor(
+    private readonly rollsService: RollsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post('ocr')
   @UseInterceptors(FileInterceptor('file'))
   async doOcr(
     @UploadedFile() file: Express.Multer.File,
+    @TenantId() tenantId: string,
   ): Promise<OcrResponse | { error: string }> {
     console.log(
       '[doOcr] İstek alındı. Dosya adı:',
@@ -52,13 +57,22 @@ export class RollsController {
     }
 
     try {
+      // Veritabanından bu kiracıya ait kumaş isimlerini çek
+      const fabricCards = await this.prisma.fabricCard.findMany({
+        where: { tenantId },
+        select: { fabricType: true },
+      });
+      const fabricTypes = fabricCards.map((c) => c.fabricType);
+      console.log('[doOcr] Bulunan kumaş kartelası sayısı:', fabricTypes.length);
+
       console.log('[doOcr] Blob oluşturuluyor...');
       const formData = new FormData();
       const blob = new Blob([new Uint8Array(file.buffer)], {
         type: file.mimetype,
       });
       formData.append('file', blob, file.originalname);
-      console.log('[doOcr] Blob oluşturuldu.');
+      formData.append('fabric_types', JSON.stringify(fabricTypes));
+      console.log('[doOcr] Blob ve fabric_types oluşturuldu.');
 
       const ocrUrl = process.env.OCR_SERVICE_URL || 'http://127.0.0.1:8000/ocr';
       console.log('[doOcr] OCR Servisine istek atılıyor:', ocrUrl);

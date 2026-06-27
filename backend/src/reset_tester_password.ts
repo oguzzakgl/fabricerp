@@ -10,7 +10,7 @@ async function main() {
     console.error('DATABASE_URL is not set!');
     process.exit(1);
   }
-  
+
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });
@@ -20,9 +20,12 @@ async function main() {
     const hash = await bcrypt.hash('123456', 10);
     const updated = await prisma.user.update({
       where: { email: 'tester1@test.com' },
-      data: { password: hash }
+      data: { password: hash },
     });
-    console.log('Password reset successfully for tester1@test.com:', updated.email);
+    console.log(
+      'Password reset successfully for tester1@test.com:',
+      updated.email,
+    );
   } catch (err) {
     console.error(err);
   } finally {
@@ -31,4 +34,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
