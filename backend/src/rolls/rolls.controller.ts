@@ -27,6 +27,7 @@ interface OcrResponse {
   netWeightKg: number;
   colorCode: string;
   quality: string;
+  barcodeNumber: string;
   rawText: string;
   error?: string;
 }
@@ -57,13 +58,21 @@ export class RollsController {
     }
 
     try {
-      // Veritabanından bu kiracıya ait kumaş isimlerini çek
-      const fabricCards = await this.prisma.fabricCard.findMany({
-        where: { tenantId },
-        select: { fabricType: true },
-      });
+      // Veritabanından bu kiracıya ait kumaş isimlerini ve geminiApiKey bilgisini çek
+      const [fabricCards, tenant] = await Promise.all([
+        this.prisma.fabricCard.findMany({
+          where: { tenantId },
+          select: { fabricType: true },
+        }),
+        this.prisma.tenant.findUnique({
+          where: { id: tenantId },
+        }),
+      ]);
       const fabricTypes = fabricCards.map((c) => c.fabricType);
-      console.log('[doOcr] Bulunan kumaş kartelası sayısı:', fabricTypes.length);
+      console.log(
+        '[doOcr] Bulunan kumaş kartelası sayısı:',
+        fabricTypes.length,
+      );
 
       console.log('[doOcr] Blob oluşturuluyor...');
       const formData = new FormData();
@@ -72,6 +81,12 @@ export class RollsController {
       });
       formData.append('file', blob, file.originalname);
       formData.append('fabric_types', JSON.stringify(fabricTypes));
+      if (tenant && (tenant as { geminiApiKey?: string | null }).geminiApiKey) {
+        formData.append(
+          'gemini_api_key',
+          (tenant as { geminiApiKey?: string | null }).geminiApiKey as string,
+        );
+      }
       console.log('[doOcr] Blob ve fabric_types oluşturuldu.');
 
       const ocrUrl = process.env.OCR_SERVICE_URL || 'http://127.0.0.1:8000/ocr';
@@ -107,10 +122,7 @@ export class RollsController {
   }
 
   @Post()
-  create(
-    @Body() createRollDto: CreateRollDto,
-    @TenantId() tenantId: string,
-  ) {
+  create(@Body() createRollDto: CreateRollDto, @TenantId() tenantId: string) {
     return this.rollsService.create(createRollDto, tenantId);
   }
 
@@ -156,10 +168,7 @@ export class RollsController {
   }
 
   @Delete(':id')
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantId() tenantId: string,
-  ) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.rollsService.remove(id, tenantId);
   }
 }

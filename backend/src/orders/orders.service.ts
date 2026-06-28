@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { SettingsService } from '../settings/settings.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -25,14 +26,21 @@ export class OrdersService {
     const { customerId, notes, items } = createOrderDto;
 
     // Validate customer under this tenant
-    const customer = await this.prisma.account.findFirst({ where: { id: customerId, tenantId } });
-    if (!customer) throw new NotFoundException(`Müşteri Cari hesabı bulunamadı.`);
+    const customer = await this.prisma.account.findFirst({
+      where: { id: customerId, tenantId },
+    });
+    if (!customer)
+      throw new NotFoundException(`Müşteri Cari hesabı bulunamadı.`);
     if (customer.type !== 'CUSTOMER' && customer.type !== 'BOTH') {
-      throw new BadRequestException(`Seçilen Cari hesabın tipi CUSTOMER veya BOTH olmalıdır.`);
+      throw new BadRequestException(
+        `Seçilen Cari hesabın tipi CUSTOMER veya BOTH olmalıdır.`,
+      );
     }
 
     if (!items || items.length === 0) {
-      throw new BadRequestException(`Sipariş en az bir kumaş topu içermelidir.`);
+      throw new BadRequestException(
+        `Sipariş en az bir kumaş topu içermelidir.`,
+      );
     }
 
     const orderNumber = await this.generateOrderNumber(tenantId);
@@ -42,8 +50,13 @@ export class OrdersService {
 
       // Lock and validate all rolls
       for (const item of items) {
-        const roll = await tx.roll.findFirst({ where: { id: item.rollId, tenantId } });
-        if (!roll) throw new NotFoundException(`Kumaş topu (ID: ${item.rollId}) bulunamadı.`);
+        const roll = await tx.roll.findFirst({
+          where: { id: item.rollId, tenantId },
+        });
+        if (!roll)
+          throw new NotFoundException(
+            `Kumaş topu (ID: ${item.rollId}) bulunamadı.`,
+          );
         if (roll.status !== 'available') {
           throw new BadRequestException(
             `Kumaş topu (barkod: ${roll.barcodeNumber}) müsait değil (durum: ${roll.status}).`,
@@ -104,14 +117,16 @@ export class OrdersService {
     const limit = Number(params.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const where: any = { tenantId };
+    const where: Prisma.OrderWhereInput = { tenantId };
     if (params.status) where.status = params.status;
     if (params.customerId) where.customerId = params.customerId;
 
     if (params.search) {
       where.OR = [
         { orderNumber: { contains: params.search, mode: 'insensitive' } },
-        { customer: { name: { contains: params.search, mode: 'insensitive' } } },
+        {
+          customer: { name: { contains: params.search, mode: 'insensitive' } },
+        },
       ];
     }
 
@@ -141,7 +156,8 @@ export class OrdersService {
         invoices: true,
       },
     });
-    if (!order) throw new NotFoundException(`ID'si '${id}' olan Sipariş bulunamadı.`);
+    if (!order)
+      throw new NotFoundException(`ID'si '${id}' olan Sipariş bulunamadı.`);
     return order;
   }
 
@@ -161,7 +177,9 @@ export class OrdersService {
   async cancel(id: string, tenantId: string) {
     const order = await this.findOne(id, tenantId);
     if (order.status === 'invoiced') {
-      throw new BadRequestException('Faturası kesilmiş sipariş iptal edilemez.');
+      throw new BadRequestException(
+        'Faturası kesilmiş sipariş iptal edilemez.',
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -188,5 +206,73 @@ export class OrdersService {
       throw new BadRequestException('Faturası kesilmiş sipariş silinemez.');
     }
     return this.prisma.order.delete({ where: { id } });
+  }
+
+  async returnItems(id: string, rollIds: string[], tenantId: string) {
+    const order = await this.findOne(id, tenantId);
+
+    if (!rollIds || rollIds.length === 0) {
+      throw new BadRequestException(
+        'İade edilmek üzere en az bir kumaş topu seçilmelidir.',
+      );
+    }
+
+    const orderItemsToReturn = order.orderItems.filter((item) =>
+      rollIds.includes(item.rollId),
+    );
+    if (orderItemsToReturn.length !== rollIds.length) {
+      throw new BadRequestException(
+        'Seçilen kumaş toplarından bazıları bu siparişe ait değil.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Kumaş toplarının durumunu 'available' yapalım ve irsaliye ilişkisini koparalım
+      await tx.roll.updateMany({
+        where: { id: { in: rollIds }, tenantId },
+        data: {
+          status: 'available',
+          waybillId: null,
+        } as unknown as Prisma.RollUpdateManyMutationInput,
+      });
+
+      // 2. Sipariş kalemlerini silelim
+      await tx.orderItem.deleteMany({
+        where: {
+          orderId: id,
+          rollId: { in: rollIds },
+        },
+      });
+
+      // 3. Siparişin toplam tutarını güncelleyelim
+      const remainingOrderItems = order.orderItems.filter(
+        (item) => !rollIds.includes(item.rollId),
+      );
+
+      let newTotal = 0;
+      if (remainingOrderItems.length > 0) {
+        const subtotal = remainingOrderItems.reduce(
+          (sum, item) =>
+            sum + Number(item.roll?.lengthM || 0) * Number(item.unitPrice),
+          0,
+        );
+        const taxRate = this.settingsService.getTaxRate(tenantId);
+        newTotal = subtotal * (1 + taxRate / 100);
+      }
+
+      const updatedOrder = await tx.order.update({
+        where: { id },
+        data: {
+          totalAmount: newTotal,
+          status: remainingOrderItems.length === 0 ? 'cancelled' : order.status,
+        },
+        include: {
+          customer: true,
+          orderItems: { include: { roll: true } },
+        },
+      });
+
+      return updatedOrder;
+    });
   }
 }

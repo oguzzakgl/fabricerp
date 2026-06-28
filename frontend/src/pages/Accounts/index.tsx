@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api/client';
@@ -53,8 +54,47 @@ const Accounts: React.FC = () => {
   const [yarnStocks, setYarnStocks] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'yarn' | 'orders' | 'finance'>('yarn');
+  const [waybills, setWaybills] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'yarn' | 'orders' | 'finance' | 'waybills'>('yarn');
   const [loadingDetails, setLoadingDetails] = useState(false);
+
+  // Return/İade State'leri
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [selectedReturnOrder, setSelectedReturnOrder] = useState<any | null>(null);
+  const [selectedReturnRollIds, setSelectedReturnRollIds] = useState<string[]>([]);
+
+  const handleOpenReturnModal = (order: any) => {
+    setSelectedReturnOrder(order);
+    setSelectedReturnRollIds([]);
+    setReturnModalOpen(true);
+  };
+
+  const handleToggleReturnRoll = (rollId: string) => {
+    setSelectedReturnRollIds((prev) =>
+      prev.includes(rollId) ? prev.filter((id) => id !== rollId) : [...prev, rollId]
+    );
+  };
+
+  const handleConfirmReturn = async () => {
+    if (selectedReturnRollIds.length === 0) {
+      alert('Lütfen iade edilecek en az bir kumaş topu seçiniz.');
+      return;
+    }
+    if (!window.confirm('Seçilen kumaş topları iade edilecek ve stoğa geri alınacaktır. Onaylıyor musunuz?')) return;
+
+    try {
+      await apiClient.post(`/orders/${selectedReturnOrder.id}/return`, {
+        rollIds: selectedReturnRollIds,
+      });
+      alert('İade işlemi başarıyla tamamlandı, toplar stoğa geri eklendi.');
+      setReturnModalOpen(false);
+      if (selectedAccount) {
+        handleOpenDetails(selectedAccount);
+      }
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'İade işlemi sırasında bir hata oluştu.');
+    }
+  };
 
   // Excel Import states
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -93,7 +133,10 @@ const Accounts: React.FC = () => {
   }, [page, limit, search, typeFilter]);
 
   useEffect(() => {
-    fetchAccounts();
+    const timer = setTimeout(() => {
+      fetchAccounts();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchAccounts]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,10 +195,24 @@ const Accounts: React.FC = () => {
       setYarnStocks(res.data.yarnStocks || []);
       setOrders(res.data.orders || []);
       setTransactions(res.data.financialTransactions || []);
+      setWaybills(res.data.waybills || []);
     } catch (err) {
       console.error(err);
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const handleInvoiceWaybill = async (waybillId: string) => {
+    if (!window.confirm('Bu irsaliyeyi faturalandırmak istediğinize emin misiniz? Sipariş fiyatları baz alınarak otomatik fatura kesilecektir.')) return;
+    try {
+      await apiClient.post(`/waybills/${waybillId}/invoice`);
+      alert('İrsaliye başarıyla faturalandırıldı, fatura cari hesaba eklendi.');
+      if (selectedAccount) {
+        handleOpenDetails(selectedAccount);
+      }
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Fatura oluşturulurken bir hata oluştu.');
     }
   };
 
@@ -745,6 +802,12 @@ const Accounts: React.FC = () => {
               >
                 Finansal Evraklar ({transactions.length})
               </button>
+              <button 
+                onClick={() => setActiveTab('waybills')}
+                className={`shrink-0 px-6 py-4 border-b-2 font-bold text-sm transition-all ${activeTab === 'waybills' ? 'border-bilgi-mavisi text-bilgi-mavisi' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
+              >
+                Sevk İrsaliyeleri ({waybills.length})
+              </button>
             </div>
             
             <div className="overflow-x-auto">
@@ -789,6 +852,7 @@ const Accounts: React.FC = () => {
                         <th className="px-standart-padding py-4">Kumaş Detayları</th>
                         <th className="px-standart-padding py-4 text-right">Toplam Tutar</th>
                         <th className="px-kenar-payi py-4 text-right">Durum</th>
+                        <th className="px-standart-padding py-4 text-right">İşlem</th>
                       </tr>
                     </thead>
                     <tbody className="text-tablo-verisi font-tablo-verisi divide-y divide-outline-variant">
@@ -816,12 +880,23 @@ const Accounts: React.FC = () => {
                             {order.status === 'cancelled' && <span className="px-2 py-0.5 bg-red-50 text-hata-kirmizisi rounded-full text-[10px] font-bold border border-red-100">İPTAL</span>}
                             {order.status === 'draft' && <span className="px-2 py-0.5 bg-gray-50 text-on-surface-variant rounded-full text-[10px] font-bold border border-gray-100">TASLAK</span>}
                           </td>
+                          <td className="px-standart-padding py-4 text-right">
+                            {order.status !== 'cancelled' && order.orderItems?.length > 0 && (
+                              <button
+                                onClick={() => handleOpenReturnModal(order)}
+                                className="text-hata-kirmizisi hover:underline font-semibold flex items-center gap-1 text-xs bg-red-50 px-2.5 py-1 rounded border border-red-100 hover:bg-red-100 transition-all shrink-0 ml-auto"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">assignment_return</span>
+                                İade
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 )
-              ) : (
+              ) : activeTab === 'finance' ? (
                 transactions.length === 0 ? (
                   <div className="py-8 text-center text-on-surface-variant">Bu cari hesaba ait finansal evrak/hareket kaydı bulunmuyor.</div>
                 ) : (
@@ -865,6 +940,59 @@ const Accounts: React.FC = () => {
                             {tx.status === 'paid' && <span className="px-2 py-0.5 bg-green-50 text-basari-yesili rounded-full text-[10px] font-bold border border-green-100">ÖDENDİ</span>}
                             {tx.status === 'bounced' && <span className="px-2 py-0.5 bg-red-50 text-hata-kirmizisi rounded-full text-[10px] font-bold border border-red-100">KARŞILIKSIZ</span>}
                             {tx.status === 'cancelled' && <span className="px-2 py-0.5 bg-gray-50 text-on-surface-variant rounded-full text-[10px] font-bold border border-gray-100">İPTAL</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              ) : (
+                waybills.length === 0 ? (
+                  <div className="py-8 text-center text-on-surface-variant">Bu cari hesaba ait sevk irsaliyesi bulunmuyor.</div>
+                ) : (
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-surface-container-lowest text-on-surface-variant text-[11px] font-bold uppercase tracking-wider border-b border-outline-variant">
+                      <tr>
+                        <th className="px-kenar-payi py-4">İrsaliye No</th>
+                        <th className="px-standart-padding py-4">Sevk Tarihi</th>
+                        <th className="px-standart-padding py-4">Sipariş No</th>
+                        <th className="px-standart-padding py-4">Kumaş Detayları</th>
+                        <th className="px-standart-padding py-4 text-center">Durum</th>
+                        <th className="px-kenar-payi py-4 text-right">İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-tablo-verisi font-tablo-verisi divide-y divide-outline-variant">
+                      {waybills.map((wb: any) => (
+                        <tr key={wb.id} className="hover:bg-arka-plan-gri/30">
+                          <td className="px-kenar-payi py-4 font-bold text-bilgi-mavisi font-etiket-mono">{wb.waybillNumber}</td>
+                          <td className="px-standart-padding py-4 text-on-surface-variant">
+                            {new Date(wb.issueDate).toLocaleDateString('tr-TR')}
+                          </td>
+                          <td className="px-standart-padding py-4 font-semibold text-on-surface-variant">{wb.order?.orderNumber || '-'}</td>
+                          <td className="px-standart-padding py-4">
+                            <div className="flex flex-col gap-1 max-w-xs">
+                              {wb.waybillItems?.map((item: any) => (
+                                <div key={item.id} className="text-xs">
+                                  • <span className="font-semibold">{item.description}</span> ({item.rollCount} Top - {Number(item.quantity).toFixed(1)}m)
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-standart-padding py-4 text-center">
+                            {wb.status === 'shipped' && <span className="px-2 py-0.5 bg-blue-50 text-bilgi-mavisi rounded-full text-[10px] font-bold border border-blue-100">SEVK EDİLDİ</span>}
+                            {wb.status === 'invoiced' && <span className="px-2 py-0.5 bg-green-50 text-basari-yesili rounded-full text-[10px] font-bold border border-green-100">FATURALANDI</span>}
+                            {wb.status === 'cancelled' && <span className="px-2 py-0.5 bg-red-50 text-hata-kirmizisi rounded-full text-[10px] font-bold border border-red-100">İPTAL</span>}
+                          </td>
+                          <td className="px-kenar-payi py-4 text-right">
+                            {wb.status === 'shipped' && (
+                              <button
+                                onClick={() => handleInvoiceWaybill(wb.id)}
+                                className="px-3 py-1 bg-basari-yesili text-white hover:bg-opacity-90 text-xs font-bold rounded shadow-xs transition-all flex items-center gap-1 ml-auto"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">receipt_long</span>
+                                Fatura Oluştur
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1277,6 +1405,90 @@ const Accounts: React.FC = () => {
                   )}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: ORDER RETURN */}
+      {returnModalOpen && selectedReturnOrder && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col max-h-[80vh]">
+            <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+              <h4 className="text-alt-baslik font-alt-baslik font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-hata-kirmizisi">assignment_return</span>
+                Sipariş İade İşlemi - {selectedReturnOrder.orderNumber}
+              </h4>
+              <button
+                className="material-symbols-outlined text-outline hover:text-on-surface"
+                onClick={() => setReturnModalOpen(false)}
+              >
+                close
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                İade etmek istediğiniz kumaş toplarını seçiniz. Seçilen toplar siparişten çıkarılacak, sipariş tutarı güncellenecek ve bu toplar depoda tekrar **Müsait (Stokta)** duruma getirilecektir.
+              </p>
+
+              <div className="space-y-2">
+                {selectedReturnOrder.orderItems?.map((item: any) => {
+                  const isSelected = selectedReturnRollIds.includes(item.rollId);
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleToggleReturnRoll(item.rollId)}
+                      className={`p-3 border rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-red-50 border-red-200'
+                          : 'hover:bg-arka-plan-gri/40 border-outline-variant/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="accent-hata-kirmizisi"
+                        />
+                        <div>
+                          <p className="font-bold text-on-surface">
+                            {item.roll?.fabricType} ({item.roll?.color})
+                          </p>
+                          <p className="text-[10px] text-on-surface-variant font-mono">
+                            Barkod: {item.roll?.barcodeNumber}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-basari-yesili text-xs block">
+                          {Number(item.roll?.lengthM || 0).toFixed(2)} mt
+                        </span>
+                        <span className="text-[10px] text-on-surface-variant block">
+                          Birim Fiyat: ₺{Number(item.unitPrice).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-4 bg-surface-container-low border-t border-outline-variant flex justify-end gap-3 font-sans">
+              <button
+                className="px-5 py-2 rounded-lg text-govde-metin hover:bg-white border border-transparent hover:border-outline-variant transition-colors font-bold"
+                onClick={() => setReturnModalOpen(false)}
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={handleConfirmReturn}
+                disabled={selectedReturnRollIds.length === 0}
+                className="bg-hata-kirmizisi text-white px-6 py-2 rounded-lg font-bold hover:brightness-105 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">assignment_return</span>
+                {selectedReturnRollIds.length} Topu İade Et
+              </button>
             </div>
           </div>
         </div>

@@ -11,10 +11,12 @@ import YarnStocks from './pages/YarnStocks';
 import Fabrics from './pages/Fabrics';
 import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
+import Waybills from './pages/Waybills';
 import Finance from './pages/Finance';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Onboarding from './pages/Onboarding';
+import SuperAdmin from './pages/SuperAdmin';
 
 
 function App() {
@@ -37,7 +39,9 @@ function App() {
               <Route path="fabrics" element={<Fabrics />} />
               <Route path="orders" element={<Orders />} />
               <Route path="invoices" element={<Invoices />} />
+              <Route path="waybills" element={<Waybills />} />
               <Route path="finance" element={<Finance />} />
+              <Route path="superadmin" element={<SuperAdmin />} />
             </Route>
           </Route>
 

@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export const ProtectedRoute: React.FC = () => {
-  const { token, tenant, loading } = useAuth();
+  const { token, tenant, loading, user } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -20,16 +20,24 @@ export const ProtectedRoute: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Kullanıcı giriş yapmış ama henüz bir firması (tenant) yoksa
-  if (!tenant) {
+  const isSuperAdmin = user && (user as { tenantId?: string | null }).tenantId === null;
+
+  // Kullanıcı giriş yapmış ama henüz bir firması (tenant) yoksa ve süper admin değilse
+  if (!tenant && !isSuperAdmin) {
     if (location.pathname !== '/onboarding') {
       return <Navigate to="/onboarding" replace />;
     }
   } else {
-    // Firması olan kullanıcı /onboarding'e girmeye çalışırsa dashboard'a yönlendir
+    // Firması olan veya süper admin olan kullanıcı /onboarding'e girmeye çalışırsa dashboard'a yönlendir
     if (location.pathname === '/onboarding') {
       return <Navigate to="/dashboard" replace />;
     }
+  }
+
+  // Süper admin ise ve /superadmin harici bir yere gitmeye çalışıyorsa /superadmin'e yönlendirebiliriz
+  // Ancak isterse normal sayfaları da görebilir. Güvenlik için /superadmin rotasını sadece süper adminler açabilir
+  if (location.pathname.startsWith('/superadmin') && !isSuperAdmin) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <Outlet />;

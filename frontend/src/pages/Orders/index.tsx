@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import apiClient from '../../api/client';
 
@@ -21,6 +21,17 @@ interface OrderItem {
   quantity: number;
   unitPrice: number;
   total: number;
+}
+
+interface ApiRoll {
+  id: string;
+  barcodeNumber: string;
+  fabricType: string;
+  color: string;
+  lengthM: number | string;
+  status: string;
+  notes?: string;
+  lockedBy?: string;
 }
 
 interface RollItem {
@@ -96,7 +107,6 @@ const convertNumberToWords = (num: number): string => {
 const Orders: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   
-  // Customers (fetched from backend)
   const [customers, setCustomers] = useState<Account[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -119,30 +129,35 @@ const Orders: React.FC = () => {
   });
   const [selectedCustomer, setSelectedCustomer] = useState<Account | null>(null);
 
-  // Modals
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [rollModalOpen, setRollModalOpen] = useState(false);
 
-  // Order Details
   const [notes, setNotes] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
 
-  // Available Rolls for Selection (dynamic)
   const [availableRolls, setAvailableRolls] = useState<RollItem[]>([]);
   const [loadingRolls, setLoadingRolls] = useState(false);
 
-  // Selected Rolls in the Modal Checkbox
   const [selectedRollIds, setSelectedRollIds] = useState<string[]>([]);
   const [taxRate, setTaxRate] = useState(20);
 
-  // Expanded levels in selection modal
   const [expandedFabrics, setExpandedFabrics] = useState<string[]>([]);
   const [expandedColors, setExpandedColors] = useState<string[]>([]);
 
-  // Load Customers
-  const fetchCustomers = async () => {
+  // Barkod Okutma & Kamera State'leri
+  const [barcodeSearch, setBarcodeSearch] = useState('');
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Fetch functions wrapped with useCallback to avoid hook dependency lint warnings
+  const fetchCustomers = useCallback(async () => {
     setLoadingCustomers(true);
     try {
       const response = await apiClient.get('/accounts', { params: { limit: 100 } });
@@ -155,14 +170,13 @@ const Orders: React.FC = () => {
     } finally {
       setLoadingCustomers(false);
     }
-  };
+  }, []);
 
-  // Load Available Rolls
-  const fetchAvailableRolls = async () => {
+  const fetchAvailableRolls = useCallback(async () => {
     setLoadingRolls(true);
     try {
       const response = await apiClient.get('/rolls', { params: { status: 'available', limit: 100 } });
-      const mapped = response.data.data.map((roll: any) => {
+      const mapped = response.data.data.map((roll: ApiRoll) => {
         let price = 150.0;
         if (roll.notes) {
           try {
@@ -170,7 +184,9 @@ const Orders: React.FC = () => {
             if (parsed && typeof parsed.pricePerMeter === 'number') {
               price = parsed.pricePerMeter;
             }
-          } catch {}
+          } catch (e) {
+            console.warn('Notes parse warning', e);
+          }
         }
         return {
           id: roll.id,
@@ -190,9 +206,9 @@ const Orders: React.FC = () => {
     } finally {
       setLoadingRolls(false);
     }
-  };
+  }, []);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       const response = await apiClient.get('/settings');
       if (response.data) {
@@ -212,21 +228,186 @@ const Orders: React.FC = () => {
     } catch (error) {
       console.error('Error fetching settings:', error);
     }
+  }, []);
+
+  // Kamera yönetimi
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setIsCameraActive(true);
+    } catch (err) {
+      console.error('Kamera başlatılamadı:', err);
+      setCameraError('Kamera erişim izni verilmedi veya kamera bulunamadı.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      if (cameraModalOpen) {
+        startCamera();
+      } else {
+        stopCamera();
+      }
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      stopCamera();
+    };
+  }, [cameraModalOpen]);
+
+  const [formattedDate] = useState(() => new Date().toLocaleDateString('tr-TR'));
+  const [formattedDueDate] = useState(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('tr-TR'));
+
+  const handleCaptureAndOcr = async () => {
+    if (!videoRef.current || !isCameraActive) return;
+
+    setCameraLoading(true);
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          alert('Fotoğraf yakalanamadı.');
+          setCameraLoading(false);
+          return;
+        }
+        await processOcrBlob(blob, 'captured_barcode.jpg');
+      }, 'image/jpeg', 0.85);
+    } catch (err) {
+      console.error(err);
+      alert('Fotoğraf çekilirken hata oluştu.');
+      setCameraLoading(false);
+    }
+  };
+
+  const handleFileUploadAndOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCameraLoading(true);
+    try {
+      await processOcrBlob(file, file.name);
+    } catch (err) {
+      console.error(err);
+      alert('Dosya okunurken hata oluştu.');
+      setCameraLoading(false);
+    }
+  };
+
+  const processOcrBlob = async (blob: Blob | File, fileName: string) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', blob, fileName);
+
+      const response = await apiClient.post('/rolls/ocr', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const ocrData = response.data;
+      if (ocrData.error) {
+        throw new Error(ocrData.error);
+      }
+
+      const detectedBarcode = ocrData.barcodeNumber?.trim();
+      if (!detectedBarcode) {
+        alert('Etiket üzerinde barkod numarası tespit edilemedi. Lütfen tekrar deneyin veya daha net çekin.');
+        setCameraLoading(false);
+        return;
+      }
+
+      const res = await apiClient.get('/rolls', { params: { search: detectedBarcode } });
+      const apiRoll = res.data.data?.[0];
+
+      if (apiRoll && apiRoll.status === 'available') {
+        if (orderItems.some((item) => item.id === apiRoll.id)) {
+          alert(`Barkod (${detectedBarcode}) zaten siparişe eklenmiş.`);
+        } else {
+          let price = 150.0;
+          if (apiRoll.notes) {
+            try {
+              const parsed = JSON.parse(apiRoll.notes);
+              if (parsed && typeof parsed.pricePerMeter === 'number') {
+                price = parsed.pricePerMeter;
+              }
+            } catch (e) {
+              console.warn('Notes parse warning', e);
+            }
+          }
+          setOrderItems((prev) => [
+            ...prev,
+            {
+              id: apiRoll.id,
+              barcode: apiRoll.barcodeNumber,
+              description: `${apiRoll.fabricType} (${apiRoll.color})`,
+              quantity: Number(apiRoll.lengthM),
+              unitPrice: price,
+              total: Number(apiRoll.lengthM) * price,
+            },
+          ]);
+          alert(`Kumaş topu başarıyla eklendi!\nKumaş: ${apiRoll.fabricType} (${apiRoll.color})\nMetraj: ${apiRoll.lengthM} mt`);
+          setCameraModalOpen(false);
+        }
+      } else {
+        alert(`Okunan barkod (${detectedBarcode}) sistemde bulunamadı veya müsait (stokta) değil.`);
+      }
+    } catch (err: unknown) {
+      console.error('OCR Hatası:', err);
+      const error = err as Error;
+      alert(error.message || 'OCR analizi sırasında hata oluştu.');
+    } finally {
+      setCameraLoading(false);
+    }
+  };
+
+  const loadData = useCallback(() => {
     fetchCustomers();
     fetchAvailableRolls();
     fetchSettings();
+  }, [fetchCustomers, fetchAvailableRolls, fetchSettings]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadData();
+    }, 0);
 
     const handleSettingsChange = () => {
       fetchSettings();
     };
     window.addEventListener('settingsChanged', handleSettingsChange);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('settingsChanged', handleSettingsChange);
     };
-  }, []);
+  }, [loadData, fetchSettings]);
 
   // Handle URL parameters for quick-creating orders from Cari cards
   useEffect(() => {
@@ -243,7 +424,6 @@ const Orders: React.FC = () => {
         })
         .catch((err) => console.error('Hızlı sipariş cari bilgisi yüklenemedi:', err));
       
-      // Clear URL params so they don't trigger again on reload
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
@@ -302,7 +482,7 @@ const Orders: React.FC = () => {
       setOrderItems((prev) => [...prev, ...newItems]);
     }
     setRollModalOpen(false);
-    setSelectedRollIds([]); // reset selection
+    setSelectedRollIds([]);
   };
 
   const handleRemoveItem = (id: string) => {
@@ -319,7 +499,51 @@ const Orders: React.FC = () => {
     );
   };
 
-  // Subtotal, KDV and Grandtotal Calculations
+  const handleBarcodeSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!barcodeSearch.trim()) return;
+
+    try {
+      const res = await apiClient.get('/rolls', { params: { search: barcodeSearch.trim() } });
+      const apiRoll = res.data.data?.[0];
+
+      if (apiRoll && apiRoll.status === 'available') {
+        if (orderItems.some((item) => item.id === apiRoll.id)) {
+          alert('Bu kumaş topu zaten siparişe eklenmiş.');
+        } else {
+          let price = 150.0;
+          if (apiRoll.notes) {
+            try {
+              const parsed = JSON.parse(apiRoll.notes);
+              if (parsed && typeof parsed.pricePerMeter === 'number') {
+                price = parsed.pricePerMeter;
+              }
+            } catch (e) {
+              console.warn('Notes parse warning', e);
+            }
+          }
+          setOrderItems((prev) => [
+            ...prev,
+            {
+              id: apiRoll.id,
+              barcode: apiRoll.barcodeNumber,
+              description: `${apiRoll.fabricType} (${apiRoll.color})`,
+              quantity: Number(apiRoll.lengthM),
+              unitPrice: price,
+              total: Number(apiRoll.lengthM) * price,
+            },
+          ]);
+        }
+        setBarcodeSearch('');
+      } else {
+        alert(`Okunan barkod (${barcodeSearch}) bulunamadı veya müsait (stokta) değil.`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Top sorgulanırken hata oluştu.');
+    }
+  };
+
   const subtotal = orderItems.reduce((sum, item) => sum + item.total, 0);
   const kdvAmount = subtotal * (taxRate / 100);
   const total = subtotal + kdvAmount;
@@ -368,20 +592,17 @@ const Orders: React.FC = () => {
         setSuccessMessage(`Sipariş başarıyla kaydedildi: ${savedOrder.orderNumber}`);
       }
       
-      // Clear Form
       setSelectedCustomer(null);
       setOrderItems([]);
       setNotes('');
-      
-      // Refresh stocks since selected rolls are now reserved/sold
       fetchAvailableRolls();
 
-      // Hide message after 5 seconds
       setTimeout(() => {
         setSuccessMessage(null);
       }, 5000);
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Sipariş kaydedilirken bir hata oluştu.');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      alert(error.response?.data?.message || 'Sipariş kaydedilirken bir hata oluştu.');
     } finally {
       setSavingOrder(false);
     }
@@ -408,14 +629,16 @@ const Orders: React.FC = () => {
           }
         }
       }
-    } catch (e) {}
+    } catch {
+      // ignore print window stylesheet access errors
+    }
 
     printWindow.document.write(`
       <html>
         <head>
-          <title>Fatura-\${selectedCustomer ? selectedCustomer.name : 'Taslak'}</title>
+          <title>Fatura Önizleme - Taslak</title>
           <style>
-            \${styles}
+            ${styles}
             @media print {
               body {
                 background: white;
@@ -436,7 +659,7 @@ const Orders: React.FC = () => {
         </head>
         <body>
           <div>
-            \${printContent.innerHTML}
+            ${printContent.innerHTML}
           </div>
           <script>
             window.onload = function() {
@@ -450,40 +673,30 @@ const Orders: React.FC = () => {
     printWindow.document.close();
   };
 
-  // Group rolls by fabricType and color
-  const groupedRolls: {
-    [fabricType: string]: {
-      [color: string]: RollItem[];
-    };
-  } = {};
-
+  const groupedAvailableRolls: { [fabricType: string]: { [color: string]: RollItem[] } } = {};
   availableRolls.forEach((roll) => {
-    const fType = roll.fabricType || 'Bilinmeyen';
-    const col = roll.color || 'Bilinmeyen';
-    if (!groupedRolls[fType]) {
-      groupedRolls[fType] = {};
+    if (!groupedAvailableRolls[roll.fabricType]) {
+      groupedAvailableRolls[roll.fabricType] = {};
     }
-    if (!groupedRolls[fType][col]) {
-      groupedRolls[fType][col] = [];
+    if (!groupedAvailableRolls[roll.fabricType][roll.color]) {
+      groupedAvailableRolls[roll.fabricType][roll.color] = [];
     }
-    groupedRolls[fType][col].push(roll);
+    groupedAvailableRolls[roll.fabricType][roll.color].push(roll);
   });
 
   const requiredFields = [
-    { key: 'companyName', label: 'Firma Resmi Unvanı' },
+    { key: 'companyName', label: 'Firma Unvanı' },
     { key: 'taxOffice', label: 'Vergi Dairesi' },
-    { key: 'taxNumber', label: 'Vergi Numarası / VKN' },
-    { key: 'phone', label: 'Telefon Numarası' },
-    { key: 'email', label: 'E-posta Adresi' },
-    { key: 'address', label: 'Firma Adresi' },
-    { key: 'iban', label: 'Banka IBAN Numarası' },
+    { key: 'taxNumber', label: 'Vergi Numarası VKN/TC' },
+    { key: 'phone', label: 'Telefon' },
+    { key: 'email', label: 'E-posta' },
+    { key: 'address', label: 'Adres' }
   ];
 
   const missingFields = requiredFields.filter(f => !companySettings[f.key as keyof typeof companySettings]);
 
   return (
     <div className="space-y-6">
-      {/* SUCCESS BANNER */}
       {successMessage && (
         <div className="bg-basari-yesili text-white p-4 rounded-xl shadow-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -557,8 +770,41 @@ const Orders: React.FC = () => {
         {/* Items Grid (Right Side) */}
         <div className="col-span-12 lg:col-span-8">
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden flex flex-col min-h-[400px] shadow-sm">
-            <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+            <div className="p-4 border-b border-outline-variant flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-surface-container-low">
               <h4 className="text-alt-baslik font-alt-baslik font-bold">Sipariş Satırları</h4>
+              
+              {/* Barkod Hızlı Giriş ve Kamera Alanı */}
+              <div className="flex flex-1 w-full md:w-auto max-w-sm gap-2">
+                <input
+                  type="text"
+                  placeholder="Barkod numarası girin..."
+                  value={barcodeSearch}
+                  onChange={(e) => setBarcodeSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleBarcodeSubmit();
+                    }
+                  }}
+                  className="flex-1 bg-arka-plan-gri border border-outline-variant rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-secondary outline-none font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleBarcodeSubmit()}
+                  className="px-3 py-1.5 bg-secondary text-on-secondary hover:bg-opacity-90 font-semibold text-xs rounded-lg shadow-sm transition-all"
+                >
+                  Ekle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCameraModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg shadow-sm transition-all flex items-center justify-center"
+                  title="Kamera ile Barkod Okut"
+                >
+                  <span className="material-symbols-outlined text-[18px]">photo_camera</span>
+                </button>
+              </div>
+
               <button
                 onClick={() => {
                   fetchAvailableRolls();
@@ -567,7 +813,7 @@ const Orders: React.FC = () => {
                 className="bg-bilgi-mavisi text-white px-4 py-1.5 rounded-lg text-govde-metin flex items-center gap-2 hover:bg-blue-700 transition-colors font-semibold"
               >
                 <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                TOP EKLE
+                LİSTEDEN EKLE
               </button>
             </div>
             
@@ -587,7 +833,7 @@ const Orders: React.FC = () => {
                   {orderItems.length === 0 ? (
                     <tr>
                       <td className="py-20 text-center text-on-surface-variant italic" colSpan={6}>
-                        Henüz bir top eklenmedi. Lütfen ürün seçiniz.
+                        Henüz bir top eklenmedi. Lütfen ürün seçiniz veya barkod okutunuz.
                       </td>
                     </tr>
                   ) : (
@@ -599,18 +845,20 @@ const Orders: React.FC = () => {
                         <td className="px-4 py-3 text-right">
                           <input
                             type="number"
-                            value={item.unitPrice}
                             min="0"
                             step="0.01"
+                            value={item.unitPrice}
                             onChange={(e) => handleUpdateItemPrice(item.id, Number(e.target.value))}
-                            className="w-24 px-2 py-1 border border-outline-variant rounded text-right focus:ring-1 focus:ring-bilgi-mavisi outline-none"
+                            className="w-24 bg-arka-plan-gri border border-outline-variant rounded p-1 text-right font-semibold"
                           />
                         </td>
-                        <td className="px-4 py-3 text-right font-bold">{item.total.toLocaleString('tr-TR')} ₺</td>
+                        <td className="px-4 py-3 text-right font-bold text-on-surface">
+                          {item.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <button
                             onClick={() => handleRemoveItem(item.id)}
-                            className="text-hata-kirmizisi hover:bg-red-50 p-1.5 rounded transition-colors"
+                            className="text-hata-kirmizisi hover:opacity-85"
                           >
                             <span className="material-symbols-outlined text-[20px]">delete</span>
                           </button>
@@ -622,63 +870,62 @@ const Orders: React.FC = () => {
               </table>
             </div>
 
-            <div className="p-6 bg-surface-container-low border-t border-outline-variant space-y-6">
-              <div className="flex flex-col items-end gap-2">
-                <div className="flex justify-between w-64 text-govde-metin">
+            {/* Calculations Summary Card */}
+            {orderItems.length > 0 && (
+              <div className="p-4 bg-surface-container-low border-t border-outline-variant space-y-2">
+                <div className="flex justify-between text-govde-metin">
                   <span className="text-on-surface-variant">Ara Toplam:</span>
-                  <span className="font-semibold">{subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                  <span className="font-semibold text-on-surface">{subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                 </div>
-                <div className="flex justify-between w-64 text-govde-metin">
+                <div className="flex justify-between text-govde-metin">
                   <span className="text-on-surface-variant">KDV (%{taxRate}):</span>
-                  <span className="font-semibold">{kdvAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                  <span className="font-semibold text-on-surface">{kdvAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                 </div>
-                <div className="flex justify-between w-64 text-alt-baslik font-bold border-t border-outline-variant pt-2">
-                  <span>Genel Toplam:</span>
-                  <span className="text-bilgi-mavisi">{total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                <div className="flex justify-between text-alt-baslik font-bold border-t border-outline-variant pt-2">
+                  <span className="text-on-surface">Genel Toplam:</span>
+                  <span className="text-secondary">{total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                 </div>
               </div>
+            )}
+          </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-outline-variant/60 w-full">
-                <button
-                  type="button"
-                  onClick={() => setPreviewOpen(true)}
-                  disabled={!selectedCustomer || orderItems.length === 0}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-outline-variant bg-white text-on-surface font-semibold hover:bg-surface-container-low active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow transition-all uppercase flex items-center justify-center gap-2 text-xs"
-                >
-                  <span className="material-symbols-outlined text-base">visibility</span>
-                  Faturayı Önizle
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveOrder(false)}
-                  disabled={savingOrder || !selectedCustomer || orderItems.length === 0}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-outline-variant bg-surface-container-high text-on-surface font-semibold hover:bg-surface-container-highest active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow transition-all uppercase flex items-center justify-center gap-2 text-xs"
-                >
-                  <span className="material-symbols-outlined text-base font-bold text-secondary">save</span>
+          {/* Action Buttons */}
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={() => setPreviewOpen(true)}
+              disabled={orderItems.length === 0}
+              className="px-6 py-2.5 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">visibility</span>
+              Önizleme & Taslak
+            </button>
+            <button
+              onClick={() => handleSaveOrder(false)}
+              disabled={savingOrder || orderItems.length === 0}
+              className="px-6 py-2.5 bg-secondary text-on-secondary hover:bg-opacity-95 font-semibold rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+            >
+              {savingOrder ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  <span>Kaydediliyor...</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-sm">save</span>
                   Siparişi Kaydet
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveOrder(true)}
-                  disabled={savingOrder || !selectedCustomer || orderItems.length === 0}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-basari-yesili text-white font-semibold hover:brightness-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow transition-all uppercase flex items-center justify-center gap-2 text-xs"
-                >
-                  <span className="material-symbols-outlined text-base font-bold text-white">receipt_long</span>
-                  Kaydet ve Fatura Kes
-                </button>
-              </div>
-            </div>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* CUSTOMER SELECTION MODAL */}
+      {/* MODAL: CUSTOMER SELECTION */}
       {customerModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-outline-variant">
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col max-h-[80vh]">
             <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
-              <h4 className="text-alt-baslik font-alt-baslik font-bold">Cari Hesap Seçimi</h4>
+              <h4 className="text-alt-baslik font-alt-baslik font-bold">Müşteri Cari Seçimi</h4>
               <button
                 className="material-symbols-outlined text-outline hover:text-on-surface"
                 onClick={() => setCustomerModalOpen(false)}
@@ -686,23 +933,24 @@ const Orders: React.FC = () => {
                 close
               </button>
             </div>
-            <div className="p-4 max-h-[400px] overflow-y-auto space-y-2">
+            
+            <div className="p-4 overflow-y-auto divide-y divide-outline-variant flex-1">
               {loadingCustomers ? (
-                <div className="py-8 text-center text-on-surface-variant font-medium">Cari hesaplar yükleniyor...</div>
+                <div className="text-center py-10 text-on-surface-variant font-medium">Cari hesaplar yükleniyor...</div>
               ) : customers.length === 0 ? (
-                <div className="py-8 text-center text-on-surface-variant">Müşteri bulunamadı.</div>
+                <div className="text-center py-10 text-on-surface-variant italic">Müşteri cari hesabı bulunamadı.</div>
               ) : (
                 customers.map((cust) => (
                   <div
                     key={cust.id}
                     onClick={() => handleSelectCustomer(cust)}
-                    className="p-3 border border-outline-variant rounded-lg hover:bg-secondary-container/10 hover:border-secondary cursor-pointer flex justify-between items-center transition-all group"
+                    className="p-3 hover:bg-arka-plan-gri/50 cursor-pointer flex justify-between items-center rounded-lg transition-colors"
                   >
                     <div>
-                      <div className="font-bold text-on-surface group-hover:text-secondary">{cust.name}</div>
-                      <div className="text-kucuk-not text-on-surface-variant">Kod: {cust.code} | Tel: {cust.phone || '-'}</div>
+                      <p className="font-bold text-on-surface">{cust.name}</p>
+                      <p className="text-xs text-on-surface-variant">Cari Kod: {cust.code}</p>
                     </div>
-                    <span className="material-symbols-outlined text-outline opacity-0 group-hover:opacity-100 transition-opacity">check_circle</span>
+                    <span className="material-symbols-outlined text-outline">arrow_forward</span>
                   </div>
                 ))
               )}
@@ -711,12 +959,12 @@ const Orders: React.FC = () => {
         </div>
       )}
 
-      {/* ROLL SELECTION MODAL */}
+      {/* MODAL: ROLL SELECTION */}
       {rollModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] border border-outline-variant">
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col h-[90vh]">
             <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
-              <h4 className="text-alt-baslik font-alt-baslik font-bold">Mevcut Top Stokları</h4>
+              <h4 className="text-alt-baslik font-alt-baslik font-bold">Depodaki Boşta Kumaş Topları</h4>
               <button
                 className="material-symbols-outlined text-outline hover:text-on-surface"
                 onClick={() => setRollModalOpen(false)}
@@ -725,147 +973,97 @@ const Orders: React.FC = () => {
               </button>
             </div>
             
-            <div className="p-4 bg-uyari-kehribar/10 border-b border-uyari-kehribar/30 flex items-center gap-3">
-              <span className="material-symbols-outlined text-uyari-kehribar">lock_open</span>
-              <p className="text-kucuk-not text-on-surface-variant">
-                <strong className="text-on-surface">Pessimistic Locking:</strong> Seçilen toplar işlem bitene kadar diğer kullanıcılar için kilitlenecektir.
-              </p>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-arka-plan-gri/10">
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
               {loadingRolls ? (
-                <div className="py-20 text-center text-on-surface-variant font-medium">Stoktaki kumaş topları yükleniyor...</div>
-              ) : availableRolls.length === 0 ? (
-                <div className="py-20 text-center text-on-surface-variant italic">Mevcut veya boşta kumaş topu bulunamadı.</div>
+                <div className="text-center py-20 text-on-surface-variant font-medium">Stoktaki kumaşlar sorgulanıyor...</div>
+              ) : Object.keys(groupedAvailableRolls).length === 0 ? (
+                <div className="text-center py-20 text-on-surface-variant italic">Depoda kullanılabilir durumda kumaş topu bulunamadı.</div>
               ) : (
-                Object.keys(groupedRolls).map((fabricType) => {
-                  const isFabricExpanded = expandedFabrics.includes(fabricType);
-                  const colorsObj = groupedRolls[fabricType];
-                  
-                  let fabricTotalRolls = 0;
-                  let fabricTotalMeters = 0;
-                  Object.values(colorsObj).forEach((rollsList) => {
-                    fabricTotalRolls += rollsList.length;
-                    rollsList.forEach((r) => fabricTotalMeters += r.quantity);
-                  });
-
-                  return (
-                    <div key={fabricType} className="border border-outline-variant rounded-lg bg-white overflow-hidden shadow-sm">
-                      {/* Fabric Type Header */}
-                      <div 
-                        onClick={() => toggleFabricExpand(fabricType)}
-                        className={`p-3.5 flex justify-between items-center cursor-pointer hover:bg-surface-container-low transition-colors select-none ${
-                          isFabricExpanded ? 'bg-surface-container-low border-b border-outline-variant' : ''
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="material-symbols-outlined text-bilgi-mavisi">layers</span>
-                          <span className="font-bold text-sm text-on-surface">{fabricType}</span>
-                        </div>
-                        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-                          <span className="text-xs font-semibold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">
-                            {fabricTotalRolls} Top ({fabricTotalMeters.toFixed(1)} mt)
+                <div className="space-y-4">
+                  {Object.keys(groupedAvailableRolls).map((fabricType) => {
+                    const isFabricExpanded = expandedFabrics.includes(fabricType);
+                    const colors = groupedAvailableRolls[fabricType];
+                    
+                    return (
+                      <div key={fabricType} className="border border-outline-variant rounded-lg overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => toggleFabricExpand(fabricType)}
+                          className="w-full flex items-center justify-between p-3 bg-surface-container text-on-surface font-bold text-sm text-left"
+                        >
+                          <span>{fabricType}</span>
+                          <span className="material-symbols-outlined">
+                            {isFabricExpanded ? 'expand_less' : 'expand_more'}
                           </span>
-                          <span className={`material-symbols-outlined text-outline transition-transform duration-200 ${isFabricExpanded ? 'rotate-180' : ''}`}>
-                            keyboard_arrow_down
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Colors Section */}
-                      {isFabricExpanded && (
-                        <div className="p-3 bg-arka-plan-gri/20 space-y-2">
-                          {Object.keys(colorsObj).map((color) => {
-                            const colorKey = `${fabricType}:${color}`;
-                            const isColorExpanded = expandedColors.includes(colorKey);
-                            const rollsList = colorsObj[color];
-                            
-                            const colorTotalRolls = rollsList.length;
-                            const colorTotalMeters = rollsList.reduce((sum, r) => sum + r.quantity, 0);
-
-                            return (
-                              <div key={color} className="border border-outline-variant/60 rounded bg-white overflow-hidden">
-                                {/* Color Header */}
-                                <div 
-                                  onClick={() => toggleColorExpand(fabricType, color)}
-                                  className={`p-2.5 flex justify-between items-center cursor-pointer hover:bg-surface-container-lowest transition-colors select-none ${
-                                    isColorExpanded ? 'bg-surface-container-lowest border-b border-outline-variant/40' : ''
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full border border-outline-variant bg-gray-200"></span>
-                                    <span className="font-semibold text-xs text-on-surface">{color}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                                    <span className="text-[11px] font-bold text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">
-                                      {colorTotalRolls} Top ({colorTotalMeters.toFixed(1)} mt)
+                        </button>
+                        
+                        {isFabricExpanded && (
+                          <div className="p-3 bg-surface-container-lowest divide-y divide-outline-variant/60">
+                            {Object.keys(colors).map((color) => {
+                              const colorKey = `${fabricType}:${color}`;
+                              const isColorExpanded = expandedColors.includes(colorKey);
+                              const rolls = colors[color];
+                              
+                              return (
+                                <div key={color} className="py-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleColorExpand(fabricType, color)}
+                                    className="w-full flex items-center justify-between text-on-surface-variant font-semibold text-xs py-1 text-left"
+                                  >
+                                    <span>{color} ({rolls.length} Top)</span>
+                                    <span className="material-symbols-outlined text-sm">
+                                      {isColorExpanded ? 'expand_less' : 'expand_more'}
                                     </span>
-                                    <span className={`material-symbols-outlined text-outline text-sm transition-transform duration-200 ${isColorExpanded ? 'rotate-180' : ''}`}>
-                                      keyboard_arrow_down
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Rolls List */}
-                                {isColorExpanded && (
-                                  <div className="p-2 bg-arka-plan-gri/10 divide-y divide-outline-variant/40">
-                                    {rollsList.map((roll) => {
-                                      const isLocked = roll.status === 'LOCKED';
-                                      const isChecked = selectedRollIds.includes(roll.id);
-                                      return (
-                                        <div 
-                                          key={roll.id} 
-                                          className={`flex justify-between items-center p-2 text-xs hover:bg-white rounded transition-colors ${
-                                            isLocked ? 'opacity-60 bg-red-50/20' : ''
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-3">
-                                            <input
-                                              type="checkbox"
-                                              disabled={isLocked}
-                                              checked={isChecked}
-                                              onChange={() => handleToggleRollSelection(roll.id)}
-                                              className="rounded text-secondary focus:ring-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                                            />
-                                            <div>
-                                              <span className="font-semibold font-etiket-mono text-bilgi-mavisi block">
-                                                {roll.barcode}
-                                              </span>
-                                              <span className="text-[10px] text-on-surface-variant">
-                                                {roll.quantity.toFixed(1)} mt
-                                              </span>
+                                  </button>
+                                  
+                                  {isColorExpanded && (
+                                    <div className="mt-2 pl-3 space-y-2 max-h-48 overflow-y-auto">
+                                      {rolls.map((roll) => {
+                                        const isSelected = selectedRollIds.includes(roll.id);
+                                        return (
+                                          <div
+                                            key={roll.id}
+                                            onClick={() => handleToggleRollSelection(roll.id)}
+                                            className={`p-2.5 border rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
+                                              isSelected
+                                                ? 'bg-secondary/10 border-secondary'
+                                                : 'hover:bg-arka-plan-gri/40 border-outline-variant/60'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => {}} // handled by parent div click
+                                                className="accent-secondary"
+                                              />
+                                              <div>
+                                                <p className="font-mono text-xs font-bold text-bilgi-mavisi">{roll.barcode}</p>
+                                                <p className="text-[10px] text-on-surface-variant">Birim Fiyat: {roll.unitPrice.toFixed(2)} ₺</p>
+                                              </div>
                                             </div>
+                                            <span className="font-bold text-basari-yesili text-xs">{roll.quantity.toFixed(2)} mt</span>
                                           </div>
-                                          
-                                          <div>
-                                            {isLocked ? (
-                                              <span className="inline-flex items-center gap-0.5 text-hata-kirmizisi text-[10px] font-bold uppercase">
-                                                <span className="material-symbols-outlined text-[10px]">lock</span>
-                                                Kilitli ({roll.lockedBy})
-                                              </span>
-                                            ) : (
-                                              <span className="text-basari-yesili text-[10px] font-bold uppercase">Mevcut</span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
             <div className="p-4 bg-surface-container-low border-t border-outline-variant flex justify-end gap-3">
               <button
-                className="px-4 py-2 rounded-lg text-govde-metin hover:bg-white border border-transparent hover:border-outline-variant transition-colors"
+                className="px-5 py-2 rounded-lg text-govde-metin hover:bg-white border border-transparent hover:border-outline-variant transition-colors font-bold"
                 onClick={() => setRollModalOpen(false)}
               >
                 İptal
@@ -873,24 +1071,23 @@ const Orders: React.FC = () => {
               <button
                 onClick={handleAddSelectedRolls}
                 disabled={selectedRollIds.length === 0}
-                className="bg-secondary text-on-secondary px-5 py-2 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-105 active:scale-95 transition-all"
+                className="bg-secondary text-on-secondary px-6 py-2 rounded-lg font-bold hover:brightness-105 active:scale-95 transition-all disabled:opacity-50"
               >
-                Seçilenleri Ekle
+                {selectedRollIds.length} Top Ekle
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* INVOICE PREVIEW MODAL */}
+      {/* PRINT PREVIEW MODAL */}
       {previewOpen && selectedCustomer && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col my-8">
-            {/* Header */}
-            <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-xs p-4">
+          <div className="bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col h-[90vh]">
+            <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low no-print">
               <h4 className="text-alt-baslik font-alt-baslik font-bold flex items-center gap-2">
                 <span className="material-symbols-outlined text-secondary">visibility</span>
-                e-Arşiv Fatura Taslak Önizleme
+                Taslak Fatura Önizlemesi
               </h4>
               <button
                 className="material-symbols-outlined text-outline hover:text-on-surface"
@@ -900,99 +1097,54 @@ const Orders: React.FC = () => {
               </button>
             </div>
 
-            {/* Scrollable Content */}
-            <div className="p-8 space-y-6 overflow-y-auto max-h-[80vh]">
-              {/* Missing Fields Banner */}
+            <div className="p-8 overflow-y-auto bg-white flex-1 font-sans">
+              {/* Warnings */}
               {missingFields.length > 0 && (
-                <div className="bg-uyari-kehribar/10 border border-uyari-kehribar text-on-surface p-4 rounded-xl flex gap-3">
-                  <span className="material-symbols-outlined shrink-0 text-2xl text-uyari-kehribar">warning</span>
-                  <div>
-                    <h6 className="font-bold text-sm text-on-surface">Fatura Kurulum Bilgileri Eksik!</h6>
-                    <p className="text-xs mt-1 text-on-surface-variant">
-                      Faturanın mevzuata uygun şekilde kesilebilmesi için aşağıdaki bilgilerin sağ üstteki Ayarlar (⚙️) menüsünden doldurulması gerekmektedir:
-                    </p>
-                    <ul className="list-disc list-inside text-xs mt-2 font-semibold grid grid-cols-2 gap-x-4 text-on-surface-variant">
-                      {missingFields.map(f => (
-                        <li key={f.key}>{f.label}</li>
-                      ))}
-                    </ul>
-                  </div>
+                <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-6 text-sm no-print space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm">warning</span>
+                    Eksik Firma Bilgileri Tespit Edildi!
+                  </p>
+                  <p>Aşağıdaki alanlar ayarlarda boş bırakıldığı için faturada görünmeyebilir: <strong>{missingFields.map(f => f.label).join(', ')}</strong></p>
+                  <p className="text-xs text-red-600 font-semibold">Fatura çıktısını yazdırmadan önce Ayarlar sayfasından bu bilgileri doldurmanız önerilir.</p>
                 </div>
               )}
 
-              {/* Realistic e-Arşiv Invoice Wrapper */}
-              <div className="overflow-x-auto w-full">
-                <div id="e-arsiv-invoice-container" className="border border-outline-variant rounded-lg p-8 bg-white text-black font-sans relative overflow-hidden shadow-inner min-w-[750px] lg:min-w-0">
-                {/* Draft Watermark */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
-                  <span className="text-[120px] font-bold tracking-widest rotate-[-30deg]">GEÇERSİZDİR</span>
-                </div>
-
-                {/* Top Section */}
-                <div className="grid grid-cols-12 gap-6 border-b border-black pb-6">
-                  {/* Left Side: Seller Info */}
-                  <div className="col-span-7 space-y-2">
-                    <h2 className="text-xl font-extrabold tracking-tight text-slate-900">
-                      {companySettings.companyName || 'LÜTFEN AYARLARDAN FİRMA UNVANINI GİRİNİZ'}
-                    </h2>
-                    <div className="text-xs space-y-1 text-slate-700">
-                      <p className="whitespace-pre-line">{companySettings.address || 'Lütfen ayarlardan firma adresini giriniz'}</p>
-                      <p><span className="font-semibold">Tel:</span> {companySettings.phone || '-'}</p>
-                      <p><span className="font-semibold">E-posta:</span> {companySettings.email || '-'}</p>
-                      <p>
-                        <span className="font-semibold">V.D. / VKN:</span>{' '}
-                        {companySettings.taxOffice || '-'} / {companySettings.taxNumber || '-'}
-                      </p>
-                    </div>
+              <div id="e-arsiv-invoice-container" className="bg-white text-black p-4 text-xs space-y-6">
+                {/* Logo & Seller Header */}
+                <div className="flex justify-between items-start border-b pb-6 border-black/10">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-bold uppercase tracking-tight text-slate-800">{companySettings.companyName || 'FABRİKA ERP'}</h2>
+                    <p className="text-slate-600 max-w-md leading-relaxed">{companySettings.address || '-'}</p>
+                    <p className="text-slate-600">Tel: {companySettings.phone || '-'} | E-posta: {companySettings.email || '-'}</p>
+                    <p className="text-slate-600 font-semibold">VD: {companySettings.taxOffice || '-'} | VKN: {companySettings.taxNumber || '-'}</p>
                   </div>
-
-                  {/* Right Side: e-Arşiv Info */}
-                  <div className="col-span-5 border border-black p-4 rounded bg-slate-50 space-y-2 flex flex-col justify-between">
-                    <div className="text-center font-bold text-sm border-b border-black pb-2 text-slate-800 tracking-wider">
-                      e-ARŞİV FATURA
-                    </div>
-                    <div className="text-[11px] space-y-1 text-slate-700">
-                      <div className="flex justify-between">
-                        <span className="font-semibold">Fatura No:</span>
-                        <span>DRAFT-{new Date().getFullYear()}000000001</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-semibold">Tarih:</span>
-                        <span>{new Date().toLocaleDateString('tr-TR')}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-semibold">Saat:</span>
-                        <span>{new Date().toLocaleTimeString('tr-TR')}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-semibold">Para Birimi:</span>
-                        <span>Türk Lirası (TRY)</span>
-                      </div>
-                      <div className="flex flex-col mt-2 pt-2 border-t border-black/10 text-[9px] font-mono break-all text-slate-500">
-                        <span className="font-semibold">ETTN:</span>
-                        <span>85fa90ea-4bc2-4c28-9447-758e4722aede</span>
-                      </div>
-                    </div>
+                  <div className="text-right space-y-1">
+                    <h1 className="text-2xl font-black tracking-widest text-red-600 uppercase">TASLAK FATURA</h1>
+                    <p className="text-sm font-bold text-slate-700">Fatura No: FAT-2026-XXXXX</p>
+                    <p className="text-slate-500">Tarih: {formattedDate}</p>
+                    <p className="text-slate-500">Vade Tarihi: {formattedDueDate}</p>
                   </div>
                 </div>
 
-                {/* Buyer (Alıcı) Section */}
-                <div className="grid grid-cols-12 gap-6 py-6 border-b border-black text-xs">
-                  <div className="col-span-12">
-                    <div className="font-bold border-b border-black/15 pb-1 mb-2 text-slate-800 uppercase tracking-wider">ALICI BİLGİLERİ</div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-1 text-slate-700">
-                        <p><span className="font-semibold text-slate-950">Sayın:</span> {selectedCustomer.name}</p>
-                        <p><span className="font-semibold text-slate-950">Adres:</span> {selectedCustomer.address || 'Belirtilmedi'}</p>
-                      </div>
-                      <div className="space-y-1 text-slate-700">
-                        <p>
-                          <span className="font-semibold text-slate-950">V.D. / VKN:</span>{' '}
-                          {selectedCustomer.taxOffice || 'Belirtilmedi'} / {selectedCustomer.taxNumber || 'Belirtilmedi'}
-                        </p>
-                        <p><span className="font-semibold text-slate-950">Tel:</span> {selectedCustomer.phone || 'Belirtilmedi'}</p>
-                        <p><span className="font-semibold text-slate-950">E-posta:</span> {selectedCustomer.email || 'Belirtilmedi'}</p>
-                      </div>
+                {/* Buyer / Customer Info */}
+                <div className="grid grid-cols-2 gap-8 border-b pb-6 border-black/10">
+                  <div className="space-y-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">ALICI / MÜŞTERİ</span>
+                    <div className="p-3 bg-slate-50 rounded border border-black/10 space-y-1 text-slate-800">
+                      <p className="font-bold text-slate-900">{selectedCustomer.name}</p>
+                      <p className="leading-relaxed">{selectedCustomer.address || '-'}</p>
+                      <p className="font-semibold mt-1">VD: {selectedCustomer.taxOffice || '-'} | VKN: {selectedCustomer.taxNumber || '-'}</p>
+                      <p>Tel: {selectedCustomer.phone || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">FATURA DETAYLARI</span>
+                    <div className="p-3 bg-slate-50 rounded border border-black/10 space-y-1 text-slate-800">
+                      <p><span className="font-semibold text-slate-900">Düzenleme Tarihi:</span> {formattedDate}</p>
+                      <p><span className="font-semibold text-slate-900">Vade Tarihi:</span> {formattedDueDate}</p>
+                      <p><span className="font-semibold text-slate-900">Para Birimi:</span> Türk Lirası (TRY)</p>
+                      {notes && <p className="mt-1 leading-normal"><span className="font-semibold text-red-600">Fatura Notu:</span> {notes}</p>}
                     </div>
                   </div>
                 </div>
@@ -1062,15 +1214,12 @@ const Orders: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Footer notes */}
                 <div className="mt-8 pt-4 border-t border-black/10 text-[10px] text-slate-500 text-center">
                   Bu belge 213 sayılı V.U.K. uyarınca Gelir İdaresi Başkanlığı e-Arşiv mevzuatına göre oluşturulan taslak fatura önizlemesidir. Mali değeri yoktur.
                 </div>
               </div>
-              </div>
             </div>
 
-            {/* Footer Buttons */}
             <div className="p-4 bg-surface-container-low border-t border-outline-variant flex justify-end gap-3 font-sans">
               <button
                 type="button"
@@ -1096,6 +1245,95 @@ const Orders: React.FC = () => {
                 <span className="material-symbols-outlined text-base">receipt_long</span>
                 Faturayı Kes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KAMERA OKUTMA MODALİ */}
+      {cameraModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col">
+            <div className="px-5 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+              <h4 className="text-alt-baslik font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-secondary">photo_camera</span>
+                Kamera ile Barkod Okut
+              </h4>
+              <button
+                onClick={() => setCameraModalOpen(false)}
+                className="material-symbols-outlined text-outline hover:text-on-surface"
+              >
+                close
+              </button>
+            </div>
+
+            <div className="p-5 flex flex-col items-center gap-4">
+              <div className="w-full bg-black rounded-lg overflow-hidden aspect-video relative flex items-center justify-center border border-outline-variant shadow-inner">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${isCameraActive ? '' : 'hidden'}`}
+                />
+                
+                {isCameraActive && !cameraLoading && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="w-[80%] h-[70%] border-2 border-dashed border-basari-yesili/70 rounded-lg relative flex flex-col justify-center p-3 bg-black/10">
+                      <div className="text-[10px] text-basari-yesili font-bold bg-black/60 px-2 py-0.5 rounded self-center tracking-wider">
+                        ETİKET BARKODUNU ORTALAYIN
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!isCameraActive && (
+                  <div className="text-center text-white p-6 space-y-3">
+                    <span className="material-symbols-outlined text-5xl opacity-40">videocam_off</span>
+                    <p className="text-xs text-gray-400">Kamera kapalı</p>
+                    {cameraError && <p className="text-xs text-hata-kirmizisi px-4">{cameraError}</p>}
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="px-4 py-2 bg-secondary text-on-secondary rounded-lg text-xs font-semibold hover:opacity-90 transition-all"
+                    >
+                      Kamerayı Başlat
+                    </button>
+                  </div>
+                )}
+
+                {cameraLoading && (
+                  <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center text-white space-y-2">
+                    <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    <span className="text-xs font-semibold">Barkod analiz ediliyor...</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Kamera Kontrolleri */}
+              <div className="flex gap-4 w-full">
+                <button
+                  type="button"
+                  onClick={handleCaptureAndOcr}
+                  disabled={!isCameraActive || cameraLoading}
+                  className="flex-1 py-2.5 bg-secondary text-on-secondary font-bold rounded-lg shadow-md hover:bg-opacity-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-sm">photo_camera</span>
+                  Fotoğraf Çek ve Oku
+                </button>
+
+                <label className="flex-1 py-2.5 bg-surface-container border border-outline-variant text-on-surface font-bold rounded-lg hover:bg-surface-container-high cursor-pointer transition-all flex items-center justify-center gap-2">
+                  <span className="material-symbols-outlined text-sm">upload_file</span>
+                  Fotoğraf Yükle
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUploadAndOcr}
+                    className="hidden"
+                    disabled={cameraLoading}
+                  />
+                </label>
+              </div>
             </div>
           </div>
         </div>

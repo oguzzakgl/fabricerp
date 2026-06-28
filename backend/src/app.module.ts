@@ -12,6 +12,7 @@ import { FinanceModule } from './finance/finance.module';
 import { SettingsModule } from './settings/settings.module';
 import { AuthModule } from './auth/auth.module';
 import { FabricCardsModule } from './fabric-cards/fabric-cards.module';
+import { WaybillsModule } from './waybills/waybills.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { FabricCardsModule } from './fabric-cards/fabric-cards.module';
     FinanceModule,
     SettingsModule,
     FabricCardsModule,
+    WaybillsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -23,10 +23,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  create(
-    @Body() createOrderDto: CreateOrderDto,
-    @TenantId() tenantId: string,
-  ) {
+  create(@Body() createOrderDto: CreateOrderDto, @TenantId() tenantId: string) {
     return this.ordersService.create(createOrderDto, tenantId);
   }
 
@@ -39,7 +36,10 @@ export class OrdersController {
     @Query('customerId') customerId?: string,
     @Query('status') status?: string,
   ) {
-    return this.ordersService.findAll({ page, limit, search, customerId, status }, tenantId);
+    return this.ordersService.findAll(
+      { page, limit, search, customerId, status },
+      tenantId,
+    );
   }
 
   @Get(':id')
@@ -60,18 +60,21 @@ export class OrdersController {
   }
 
   @Patch(':id/cancel')
-  cancel(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantId() tenantId: string,
-  ) {
+  cancel(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.ordersService.cancel(id, tenantId);
   }
 
   @Delete(':id')
-  remove(
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
+    return this.ordersService.remove(id, tenantId);
+  }
+
+  @Post(':id/return')
+  returnItems(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body('rollIds') rollIds: string[],
     @TenantId() tenantId: string,
   ) {
-    return this.ordersService.remove(id, tenantId);
+    return this.ordersService.returnItems(id, rollIds, tenantId);
   }
 }

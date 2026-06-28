@@ -67,6 +67,7 @@ class FabricOcrResult(BaseModel):
     netWeightKg: float = Field(description="Kilogram cinsinden kumaş ağırlığı (ondalıklı sayı, Örn: 22.4, 15.0). Eğer bulunamazsa 0.0.")
     colorCode: str = Field(description="Renk kodu veya numarası (Örn: 055, 1024, 7). Eğer bulunamazsa boş string.")
     quality: str = Field(description="Kumaş kalitesi (varsayılan olarak '1'). Eğer bulunamazsa '1'.")
+    barcodeNumber: str = Field(description="Barkod numarası veya benzersiz etiket/top numarası (Örn: IRS-2026-00001, 100234, K-1234). Eğer bulunamazsa boş string.")
 
 # PaddleOCR Lazy-Loading yapısı
 _ocr_model = None
@@ -190,10 +191,14 @@ def run_ocr_predict(img_np):
     return raw_texts
 
 @app.post("/ocr")
-def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None)):
+def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None), gemini_api_key: Optional[str] = Form(None)):
     print(f"FastAPI: Istek alindi. Dosya adi: {file.filename}")
     contents = file.file.read()
     print(f"FastAPI: Dosya okundu. Boyut: {len(contents)} byte")
+    
+    apiKey = gemini_api_key or os.environ.get("GEMINI_API_KEY")
+    if apiKey:
+        genai.configure(api_key=apiKey)
     
     ocr_engine = os.environ.get("OCR_ENGINE", "gemini").lower()
     
@@ -211,7 +216,7 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
         except Exception as e:
             print(f"HATA: fabric_types parse edilemedi: {e}")
     
-    if ocr_engine == "gemini" and gemini_api_key:
+    if ocr_engine == "gemini" and apiKey:
         try:
             print("FastAPI: Gemini Multimodal analizi basliyor...")
             model = genai.GenerativeModel('gemini-2.5-flash')
@@ -224,7 +229,8 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
                     "2. colorCode (Renk Kodu): Genellikle etiket üzerinde yer alan mavi daire çıkartmanın içindeki 'COLOR' yazısının hemen altındaki büyük sayıdır. KRİTİK KURAL: Renk kodu SADECE 1 ile 13 (dahil) arasındaki tam sayılar olabilir (Örn: 1, 2, 3, 10, 13). 13'ten büyük sayıları veya 3 haneli sayıları (Örn: 055) kesinlikle renk kodu olarak alma. Eğer bu aralıkta (1-13) geçerli bir sayı bulunamazsa boş string döndür.\n"
                     "3. lengthM (Metre): Etiketin üst/yan kısmında dikey veya yatay olarak 'Mt' veya 'M' birimiyle yazan sayıyı al (Örn: 89.50, 73.90).\n"
                     "4. netWeightKg (Net Ağırlık): Etikette 'Kg' veya 'KG' birimiyle yazan net ağırlık değerini al (Örn: 25.30, 27.70).\n"
-                    "5. quality (Kalite): Etikette kalite sınıfı belirtilmişse yaz (Varsayılan olarak '1')."
+                    "5. quality (Kalite): Etikette kalite sınıfı belirtilmişse yaz (Varsayılan olarak '1').\n"
+                    "6. barcodeNumber (Barkod Numarası): Etiket üzerindeki barkod numarasını, top numarasını veya benzersiz referans kodunu al (Örn: 100234, IRS-2026-00001). Genellikle barkod çizgisinin altında veya etiket kenarında yer alır."
                 ],
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
@@ -240,6 +246,7 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
                 "netWeightKg": float(result_data.get("netWeightKg") or 0.0),
                 "colorCode": str(result_data.get("colorCode") or ""),
                 "quality": str(result_data.get("quality") or "1"),
+                "barcodeNumber": str(result_data.get("barcodeNumber") or ""),
                 "rawText": f"Gemini API Analiz Sonucu\n{response.text}"
             }
         except Exception as e:
@@ -405,12 +412,23 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
                 detected_color_num = num_clean
                 break
 
+    # 4. Barkod Numarası Tespiti (Parti No veya Barkod)
+    detected_barcode = ""
+    barcode_match = re.search(r'\b(?:BARCODE|BARKOD|NO|PARTİ|PARTI|TOPNO|TOP NO)\s*[:.\s-]*([A-Z0-9-]+)\b', full_text, re.IGNORECASE)
+    if barcode_match:
+        detected_barcode = barcode_match.group(1).strip()
+    else:
+        irs_match = re.search(r'\b(IRS-\d{4}-\d{5})\b', full_text, re.IGNORECASE)
+        if irs_match:
+            detected_barcode = irs_match.group(1).strip()
+
     return {
         "fabricType": detected_fabric or "Bilinmeyen Kumaş",
         "lengthM": detected_length,
         "netWeightKg": detected_weight,
         "colorCode": detected_color_num,
         "quality": "1",
+        "barcodeNumber": detected_barcode,
         "rawText": full_text
     }
 

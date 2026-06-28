@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
@@ -122,14 +124,25 @@ export class AccountsService {
           where: { tenantId },
           orderBy: { createdAt: 'desc' },
           include: {
-            orderItems: true,
+            orderItems: {
+              include: {
+                roll: true,
+              },
+            },
           },
         },
         financialTransactions: {
           where: { tenantId },
           orderBy: { createdAt: 'desc' },
         },
-      },
+        waybills: {
+          where: { tenantId },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            waybillItems: true,
+          },
+        },
+      } as any,
     });
     if (!account) {
       throw new NotFoundException(`ID'si '${id}' olan Cari hesap bulunamadı.`);

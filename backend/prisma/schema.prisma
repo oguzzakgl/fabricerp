@@ -23,6 +23,7 @@ model Account {
   yarnStocks           YarnStock[]
   orders               Order[]
   invoices             Invoice[]
+  waybills             Waybill[]
   financialTransactions FinancialTransaction[]
 
   @@unique([code, tenantId])
@@ -75,6 +76,8 @@ model Roll {
   updatedAt        DateTime          @updatedAt @map("updated_at")
   productionRecipe ProductionRecipe?
   orderItems       OrderItem[]
+  waybillId        String?           @map("waybill_id") @db.Uuid
+  waybill          Waybill?          @relation(fields: [waybillId], references: [id])
 
   @@index([tenantId])
   @@index([fabricType])
@@ -112,6 +115,7 @@ model Order {
   updatedAt    DateTime    @updatedAt @map("updated_at")
   orderItems   OrderItem[]
   invoices     Invoice[]
+  waybills     Waybill[]
 
   @@index([tenantId])
   @@index([customerId])
@@ -211,6 +215,7 @@ model Tenant {
   taxNumber    String?   @map("tax_number")
   iban         String?
   logoUrl      String?   @map("logo_url")
+  geminiApiKey String?   @map("gemini_api_key")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
@@ -220,6 +225,7 @@ model Tenant {
   rolls                 Roll[]
   orders                Order[]
   invoices              Invoice[]
+  waybills              Waybill[]
   financialTransactions FinancialTransaction[]
   fabricCards           FabricCard[]
 
@@ -264,4 +270,41 @@ model FabricCard {
   @@unique([fabricType, tenantId])
   @@index([tenantId])
   @@map("fabric_cards")
+}
+
+model Waybill {
+  id               String               @id @default(uuid()) @db.Uuid
+  waybillNumber    String               @unique @map("waybill_number")
+  orderId          String?              @map("order_id") @db.Uuid
+  order            Order?               @relation(fields: [orderId], references: [id])
+  customerId       String               @map("customer_id") @db.Uuid
+  customer         Account              @relation(fields: [customerId], references: [id])
+  issueDate        DateTime             @map("issue_date")
+  status           String               @default("shipped") // "shipped", "invoiced", "cancelled"
+  notes            String?
+  tenantId         String?              @map("tenant_id") @db.Uuid
+  tenant           Tenant?              @relation(fields: [tenantId], references: [id])
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  waybillItems     WaybillItem[]
+  rolls            Roll[]
+
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("waybills")
+}
+
+model WaybillItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  waybillId   String   @map("waybill_id") @db.Uuid
+  waybill     Waybill  @relation(fields: [waybillId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal  @db.Decimal(10, 2)
+  rollCount   Int      @map("roll_count")
+  rollDetails String?  @map("roll_details")
+  unitPrice   Decimal? @map("unit_price") @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("waybill_items")
 }
