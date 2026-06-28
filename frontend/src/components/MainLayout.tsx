@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { Modal } from 'antd';
 import apiClient from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -90,17 +91,25 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (!confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?')) return;
-    try {
-      await apiClient.delete(`/settings/users/${id}`);
-      alert('Kullanıcı silindi.');
-      fetchUsers();
-    } catch (error: unknown) {
-      console.error(error);
-      const errMsg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      alert(errMsg || 'Kullanıcı silinirken hata oluştu.');
-    }
+  const handleDeleteUser = (id: string) => {
+    Modal.confirm({
+      title: 'Kullanıcıyı Sil',
+      content: 'Bu kullanıcıyı silmek istediğinize emin misiniz?',
+      okText: 'Evet, Sil',
+      okType: 'danger',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await apiClient.delete(`/settings/users/${id}`);
+          alert('Kullanıcı silindi.');
+          fetchUsers();
+        } catch (error: unknown) {
+          console.error(error);
+          const errMsg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+          alert(errMsg || 'Kullanıcı silinirken hata oluştu.');
+        }
+      }
+    });
   };
 
   useEffect(() => {
@@ -130,13 +139,13 @@ const MainLayout: React.FC = () => {
     { path: '/finance', label: 'Finans', icon: 'account_balance_wallet' },
   ];
 
-  if (user && (user as { tenantId?: string | null }).tenantId === null) {
-    menuItems.push({
-      path: '/superadmin',
-      label: 'Süper Admin',
-      icon: 'admin_panel_settings',
-    });
-  }
+  const isSuperAdmin = user && (user as { tenantId?: string | null }).tenantId === null;
+  const superAdminMenuItems = isSuperAdmin ? [
+    { path: '/superadmin', label: 'Admin Dashboard', icon: 'admin_panel_settings' },
+    { path: '/superadmin/tenants', label: 'Müşteri Firmalar', icon: 'corporate_fare' },
+    { path: '/superadmin/users', label: 'Kullanıcı Hesapları', icon: 'manage_accounts' },
+    { path: '/superadmin/invites', label: 'Davet Kodları', icon: 'vpn_key' },
+  ] : [];
 
   const handleGlobalSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return;
@@ -173,7 +182,13 @@ const MainLayout: React.FC = () => {
       case '/invoices': return 'Faturalandırma';
       case '/waybills': return 'İrsaliyeler';
       case '/finance': return 'Finans (Çek/Senet)';
-      default: return 'Tekstil ERP';
+      case '/superadmin': return 'Admin Dashboard';
+      case '/superadmin/tenants': return 'Müşteri Firmalar';
+      case '/superadmin/users': return 'Kullanıcı Hesapları';
+      case '/superadmin/invites': return 'Davet Kodları';
+      default:
+        if (location.pathname.startsWith('/superadmin/tenants/')) return 'Firma Detayı';
+        return 'Tekstil ERP';
     }
   };
 
@@ -207,7 +222,7 @@ const MainLayout: React.FC = () => {
         </div>
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto hide-scrollbar">
           {menuItems.map((item) => {
-            const isActive = location.pathname.startsWith(item.path);
+            const isActive = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
             return (
               <button
                 key={item.path}
@@ -223,6 +238,32 @@ const MainLayout: React.FC = () => {
               </button>
             );
           })}
+          {superAdminMenuItems.length > 0 && (
+            <>
+              <div className="pt-4 pb-1 px-4">
+                <div className="border-t border-white/10 pt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-secondary-container opacity-40">Süper Admin</p>
+                </div>
+              </div>
+              {superAdminMenuItems.map((item) => {
+                const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 text-left ${
+                      isActive
+                        ? 'bg-secondary text-on-secondary font-semibold shadow-md'
+                        : 'text-on-secondary-container opacity-70 hover:opacity-100 hover:bg-primary-container'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined">{item.icon}</span>
+                    <span className="text-govde-metin font-govde-metin">{item.label}</span>
+                  </button>
+                );
+              })}
+            </>
+          )}
         </nav>
         <div className="px-6 mt-auto pt-6 border-t border-white/10 flex flex-col gap-4">
           <div className="flex items-center gap-3">

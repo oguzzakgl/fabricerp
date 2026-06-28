@@ -13,6 +13,7 @@ import { SettingsModule } from './settings/settings.module';
 import { AuthModule } from './auth/auth.module';
 import { FabricCardsModule } from './fabric-cards/fabric-cards.module';
 import { WaybillsModule } from './waybills/waybills.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { WaybillsModule } from './waybills/waybills.module';
     SettingsModule,
     FabricCardsModule,
     WaybillsModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

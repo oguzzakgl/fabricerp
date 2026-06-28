@@ -41,18 +41,34 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    apiClient.get('/dashboard/stats')
-      .then((res) => {
-        setCariCount(res.data.cariCount);
-        setYarnTotalKg(res.data.yarnTotalKg);
-        setPendingChequesAmount(res.data.pendingChequesAmount);
-        setCriticalStocks(res.data.criticalStocks);
-        setUrgentPayments(res.data.urgentPayments);
-        setChartData(res.data.chartData);
-      })
-      .catch((err) => console.error('Dashboard istatistikleri yüklenemedi:', err))
-      .finally(() => setLoading(false));
+    let active = true;
+    const loadData = async () => {
+      if (active) {
+        setLoading(true);
+      }
+      try {
+        const res = await apiClient.get('/dashboard/stats');
+        if (active) {
+          setCariCount(res.data.cariCount);
+          setYarnTotalKg(res.data.yarnTotalKg);
+          setPendingChequesAmount(res.data.pendingChequesAmount);
+          setCriticalStocks(res.data.criticalStocks);
+          setUrgentPayments(res.data.urgentPayments);
+          setChartData(res.data.chartData);
+        }
+      } catch (err) {
+        console.error('Dashboard istatistikleri yüklenemedi:', err);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadData();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Report Export logic
@@ -125,6 +141,13 @@ const Dashboard: React.FC = () => {
           <p className="text-govde-metin text-on-surface-variant">Hoş geldiniz, fabrikadaki son durum özetini aşağıda görebilirsiniz.</p>
         </div>
         <div className="flex flex-row gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => navigate('/fabrics?scan=true')}
+            className="flex-1 sm:flex-none px-4 py-2 bg-secondary text-white text-govde-metin font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-sm">photo_camera</span>
+            Kamera / Galeri ile Etiket Okut
+          </button>
           <button 
             onClick={handleExportReport}
             className="flex-1 sm:flex-none px-4 py-2 bg-surface-container-lowest border border-outline-variant text-govde-metin font-semibold rounded-lg hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2"
@@ -140,6 +163,28 @@ const Dashboard: React.FC = () => {
             Yeni Sipariş
           </button>
         </div>
+      </div>
+
+      {/* QUICK ACTIONS / OCR BANNER */}
+      <div className="bg-gradient-to-r from-secondary/15 via-secondary/5 to-transparent border border-secondary/20 p-5 rounded-xl mb-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-secondary text-white rounded-xl shadow-lg shadow-secondary/25 flex items-center justify-center">
+            <span className="material-symbols-outlined text-2xl">photo_camera</span>
+          </div>
+          <div>
+            <h3 className="text-on-surface font-bold text-[16px] md:text-lg">Kamera veya Galeri ile Akıllı Etiket Okuma (OCR)</h3>
+            <p className="text-on-surface-variant text-xs md:text-sm mt-0.5">
+              Kumaş toplarının etiketlerini kameranızla taratıp veya galeri resmi yükleyerek saniyeler içinde sisteme mevcut/yeni stok olarak kaydedin.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => navigate('/fabrics?scan=true')}
+          className="w-full md:w-auto px-5 py-3 bg-secondary hover:bg-secondary/95 active:scale-98 text-white font-bold rounded-lg shadow-md shadow-secondary/15 flex items-center justify-center gap-2 transition-all"
+        >
+          <span className="material-symbols-outlined text-[20px]">document_scanner</span>
+          Hemen Tara ve Stok Ekle
+        </button>
       </div>
 
       {/* METRIC CARDS */}

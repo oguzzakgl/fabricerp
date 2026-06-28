@@ -190,16 +190,40 @@ def run_ocr_predict(img_np):
                             raw_texts.append(str(text_info).strip())
     return raw_texts
 
+_gemini_model = None
+_last_api_key = None
+
+def get_gemini_model(api_key: str):
+    global _gemini_model, _last_api_key
+    if _gemini_model is None or _last_api_key != api_key:
+        print("FastAPI: Gemini modeli (re)config ediliyor...")
+        genai.configure(api_key=api_key)
+        _gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+        _last_api_key = api_key
+    return _gemini_model
+
 @app.post("/ocr")
 def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None), gemini_api_key: Optional[str] = Form(None)):
     print(f"FastAPI: Istek alindi. Dosya adi: {file.filename}")
     contents = file.file.read()
     print(f"FastAPI: Dosya okundu. Boyut: {len(contents)} byte")
     
-    apiKey = gemini_api_key or os.environ.get("GEMINI_API_KEY")
-    if apiKey:
-        genai.configure(api_key=apiKey)
+    # Görsel Boyutu ve Kalitesi Optimizasyonu (Network ve Model hızı için)
+    try:
+        nparr = np.frombuffer(contents, np.uint8)
+        img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img_np is not None:
+            # Genişliği maksimum 800px yap (Okunabilirlik korunur, dosya boyutu ciddi oranda düşer)
+            img_resized = resize_if_needed(img_np, target_width=800)
+            # %70 kalitede WebP olarak sıkıştır (WebP, JPEG'e göre çok daha küçük boyutludur)
+            success, encoded_img = cv2.imencode('.webp', img_resized, [int(cv2.IMWRITE_WEBP_QUALITY), 70])
+            if success:
+                contents = encoded_img.tobytes()
+                print(f"FastAPI: Görsel WebP formatında optimize edildi. Yeni boyut: {len(contents)} byte")
+    except Exception as img_err:
+        print(f"UYARI: Görsel optimizasyonu yapılamadı, orijinal dosya kullanılacak: {img_err}")
     
+    apiKey = gemini_api_key or os.environ.get("GEMINI_API_KEY")
     ocr_engine = os.environ.get("OCR_ENGINE", "gemini").lower()
     
     # Veritabanından gelen kumaş listesini prompt kuralına dönüştür
@@ -219,10 +243,10 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
     if ocr_engine == "gemini" and apiKey:
         try:
             print("FastAPI: Gemini Multimodal analizi basliyor...")
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = get_gemini_model(apiKey)
             response = model.generate_content(
                 [
-                    {"mime_type": file.content_type or "image/jpeg", "data": contents},
+                    {"mime_type": "image/webp", "data": contents},
                     "Sen tekstil etiketlerini analiz eden uzman bir yapay zekasın. Görseldeki etiket bilgilerini şu kurallara göre ayıkla:\n"
                     "1. fabricType (Kumaş Türü): Etiket üzerindeki 'KALİTE' (KALITE) ve 'KUMAŞ ADI' (KUMAS ADI) alanlarının her ikisini de oku. Bu iki alandan hangisi asıl kumaş ismini/cinsini (Örn: RONA, CROC, COSMOS, MINAR, SÜPREM, İKİ İPLİK, RİBANA, KAŞKORSE, İNTERLOK vb.) içeriyorsa o değeri seç. 'EN LYCRA', 'LYCRA', 'LIKRA' gibi esneklik belirten genel ifadeler yerine, spesifik kumaş türünü (Örn: RONA, COSMOS veya SÜPREM) tercih et."
                     f"{fabric_list_instruction}\n"
@@ -235,6 +259,7 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
                     response_schema=FabricOcrResult,
+                    temperature=0.0,
                 ),
                 request_options={"timeout": 30.0}
             )
@@ -253,6 +278,7 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
             print(f"HATA: Gemini API analizi sirasinda hata olustu: {e}")
             print("FastAPI: Otomatik olarak PaddleOCR fallback moduna geciliyor...")
             
+    # Fallback durumunda orijinal veriyi byte olarak okumak için
     nparr = np.frombuffer(contents, np.uint8)
     img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     print("FastAPI: cv2 imdecode tamamlandi.")

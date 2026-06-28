@@ -8,7 +8,10 @@ import {
   IsDateString,
   IsEnum,
 } from 'class-validator';
-import { TransactionType, TransactionDirection } from './create-financial-transaction.dto';
+import {
+  TransactionType,
+  TransactionDirection,
+} from './create-financial-transaction.dto';
 
 export class UpdateFinancialTransactionDto {
   @IsOptional()

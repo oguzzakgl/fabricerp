@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsDecimal, IsNumber, Min, IsEnum, IsUUID } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsDecimal,
+  IsNumber,
+  Min,
+  IsEnum,
+  IsUUID,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateRollDto {

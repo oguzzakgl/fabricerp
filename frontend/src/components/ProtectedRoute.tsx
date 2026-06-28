@@ -17,7 +17,8 @@ export const ProtectedRoute: React.FC = () => {
   }
 
   if (!token) {
-    return <Navigate to="/login" replace />;
+    window.location.href = import.meta.env.VITE_MARKETING_URL || 'http://localhost:4000';
+    return null;
   }
 
   const isSuperAdmin = user && (user as { tenantId?: string | null }).tenantId === null;

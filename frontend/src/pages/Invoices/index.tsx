@@ -1,5 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../../api/client';
+
+interface APIRoll {
+  barcodeNumber: string;
+  fabricType: string;
+  color: string;
+  lengthM: number;
+}
+
+interface APIOrderItem {
+  id: string;
+  roll: APIRoll;
+  unitPrice: number;
+}
+
+interface APIOrder {
+  id: string;
+  orderNumber: string;
+  customerId: string;
+  customer?: {
+    name?: string;
+    code?: string;
+    taxNumber?: string;
+    taxOffice?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+  };
+  createdAt: string;
+  status: string;
+  totalAmount: number;
+  notes?: string;
+  orderItems: APIOrderItem[];
+}
 
 interface OrderItem {
   id: string;
@@ -93,8 +126,6 @@ const Invoices: React.FC = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<SavedOrder | null>(null);
 
-  // Tevkifat state
-  const [tevkifatApplied, setTevkifatApplied] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [taxRate, setTaxRate] = useState(20);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -116,11 +147,19 @@ const Invoices: React.FC = () => {
     iban: '',
   });
 
-  const fetchOrders = async () => {
+  const [dueDateInfo] = useState(() => {
+    const date = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    return {
+      iso: date.toISOString(),
+      local: date.toLocaleDateString('tr-TR'),
+    };
+  });
+
+  const fetchOrders = useCallback(async () => {
     try {
       const response = await apiClient.get('/orders', { params: { limit: 100, status: 'confirmed' } });
-      const mapped = response.data.data.map((order: any) => {
-        const mappedItems = order.orderItems.map((oi: any) => {
+      const mapped = response.data.data.map((order: APIOrder) => {
+        const mappedItems = order.orderItems.map((oi: APIOrderItem) => {
           const qty = Number(oi.roll.lengthM);
           const price = Number(oi.unitPrice);
           return {
@@ -133,7 +172,7 @@ const Invoices: React.FC = () => {
           };
         });
 
-        const subtotal = mappedItems.reduce((sum: number, item: any) => sum + item.total, 0);
+        const subtotal = mappedItems.reduce((sum: number, item: { total: number }) => sum + item.total, 0);
 
         return {
           id: order.id,
@@ -158,14 +197,23 @@ const Invoices: React.FC = () => {
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
-  };
+  }, []);
 
   // Load orders on component mount
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    let active = true;
+    const loadOrders = async () => {
+      if (active) {
+        await fetchOrders();
+      }
+    };
+    void loadOrders();
+    return () => {
+      active = false;
+    };
+  }, [fetchOrders]);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       const response = await apiClient.get('/settings');
       if (response.data) {
@@ -185,19 +233,28 @@ const Invoices: React.FC = () => {
     } catch (error) {
       console.error('Error fetching settings:', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchSettings();
+    let active = true;
+    const loadSettings = async () => {
+      if (active) {
+        await fetchSettings();
+      }
+    };
+    void loadSettings();
 
     const handleSettingsChange = () => {
-      fetchSettings();
+      if (active) {
+        void fetchSettings();
+      }
     };
     window.addEventListener('settingsChanged', handleSettingsChange);
     return () => {
+      active = false;
       window.removeEventListener('settingsChanged', handleSettingsChange);
     };
-  }, []);
+  }, [fetchSettings]);
 
   const handleOrderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -209,8 +266,7 @@ const Invoices: React.FC = () => {
   // Cost calculations
   const matrah = selectedOrder ? selectedOrder.subtotal : 0;
   const kdv = matrah * (taxRate / 100);
-  const tevkifat = tevkifatApplied ? kdv * 0.5 : 0; // 5/10 Tevkifat
-  const grandTotal = matrah + kdv - tevkifat;
+  const grandTotal = matrah + kdv;
 
   const requiredFields = [
     { key: 'companyName', label: 'Firma Resmi Unvanı' },
@@ -245,14 +301,16 @@ const Invoices: React.FC = () => {
           }
         }
       }
-    } catch (e) {}
+    } catch (err) {
+      console.warn('Styles could not be loaded:', err);
+    }
 
     printWindow.document.write(`
       <html>
         <head>
           <title>Fatura-${selectedOrder ? selectedOrder.orderNumber : 'Taslak'}</title>
           <style>
-            \${styles}
+            ${styles}
             @media print {
               body {
                 background: white;
@@ -273,7 +331,7 @@ const Invoices: React.FC = () => {
         </head>
         <body>
           <div>
-            \${printContent.innerHTML}
+            ${printContent.innerHTML}
           </div>
           <script>
             window.onload = function() {
@@ -298,7 +356,7 @@ const Invoices: React.FC = () => {
         orderId: selectedOrder.id,
         customerId: selectedOrder.customerId,
         issueDate: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        dueDate: dueDateInfo.iso,
         taxRate: taxRate,
         notes: selectedOrder.notes || '',
         items: selectedOrder.items.map((item) => ({
@@ -319,8 +377,9 @@ const Invoices: React.FC = () => {
       setTimeout(() => {
         setSuccessMessage(null);
       }, 5000);
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Fatura oluşturulurken hata oluştu.');
+    } catch (err) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      alert(errorObj.response?.data?.message || 'Fatura oluşturulurken hata oluştu.');
     }
   };
 
@@ -376,7 +435,7 @@ const Invoices: React.FC = () => {
           <div className="flex-1 bg-arka-plan-gri px-5 py-2.5 rounded-lg border border-outline-variant">
             <span className="text-kucuk-not text-on-surface-variant block uppercase font-semibold">Vade Tarihi</span>
             <span className="font-semibold text-on-surface">
-              {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('tr-TR')}
+              {dueDateInfo.local}
             </span>
           </div>
         </div>
@@ -422,28 +481,7 @@ const Invoices: React.FC = () => {
 
         {/* BOTTOM METRICS */}
         <div className="grid grid-cols-12 p-5 gap-6 border-t border-outline-variant bg-surface-container-low">
-          <div className="col-span-12 lg:col-span-7">
-            <div className="bg-white p-4 rounded-lg border border-outline-variant/60 shadow-sm">
-              <h5 className="font-bold text-kucuk-not uppercase text-on-surface-variant mb-2">Tevkifat / İstisna Bilgisi</h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    id="tevkifat"
-                    type="checkbox"
-                    checked={tevkifatApplied}
-                    onChange={(e) => setTevkifatApplied(e.target.checked)}
-                    className="rounded text-secondary focus:ring-secondary"
-                  />
-                  <label htmlFor="tevkifat" className="text-govde-metin font-semibold text-on-surface">
-                    Tevkifat Uygula (5/10)
-                  </label>
-                </div>
-                <p className="text-kucuk-not text-on-surface-variant">
-                  Tekstil sektörüne özel tevkifat oranları mevzuata uygun olarak otomatik hesaplanır.
-                </p>
-              </div>
-            </div>
-          </div>
+          <div className="col-span-12 lg:col-span-7" />
           <div className="col-span-12 lg:col-span-5 flex flex-col gap-2.5 text-sm">
             <div className="flex justify-between text-on-surface">
               <span className="text-on-surface-variant">Matrah (KDV Matrahı):</span>
@@ -453,10 +491,7 @@ const Invoices: React.FC = () => {
               <span className="text-on-surface-variant">KDV (%{taxRate}):</span>
               <span className="font-semibold">{kdv.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
             </div>
-            <div className="flex justify-between text-hata-kirmizisi">
-              <span>Tevkifat (Hesaplanan KDV'den İndirilen):</span>
-              <span className="font-bold">-{tevkifat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-            </div>
+
             <div className="flex justify-between text-alt-baslik font-bold border-t border-outline-variant pt-3 text-on-surface">
               <span>Genel Toplam:</span>
               <span className="text-bilgi-mavisi">{grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
@@ -657,12 +692,7 @@ const Invoices: React.FC = () => {
                       <span>Hesaplanan KDV (%{taxRate}):</span>
                       <span className="font-mono font-semibold text-slate-900">{kdv.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                     </div>
-                    {tevkifatApplied && (
-                      <div className="flex justify-between text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded">
-                        <span>KDV Tevkifatı (5/10):</span>
-                        <span className="font-mono">-{tevkifat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                      </div>
-                    )}
+
                     <div className="flex justify-between text-sm font-bold border-t border-black pt-2 text-slate-950 bg-slate-50 px-2 py-1 rounded">
                       <span>Ödenecek Tutar (Genel Toplam):</span>
                       <span className="font-mono text-blue-700 text-base">{grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>

@@ -16,20 +16,60 @@ export class WaybillsService {
   constructor(private prisma: PrismaService) {}
 
   private async generateWaybillNumber(tenantId: string): Promise<string> {
-    const count = await (this.prisma as any).waybill.count({
-      where: { tenantId },
-    });
     const year = new Date().getFullYear();
-    return `IRS-${year}-${String(count + 1).padStart(5, '0')}`;
+    const lastWaybill = await this.prisma.waybill.findFirst({
+      where: {
+        tenantId,
+        waybillNumber: { startsWith: `IRS-${year}-` },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { waybillNumber: true },
+    });
+
+    if (!lastWaybill) {
+      return `IRS-${year}-00001`;
+    }
+
+    const parts = lastWaybill.waybillNumber.split('-');
+    const lastNumStr = parts[parts.length - 1];
+    const lastNum = parseInt(lastNumStr, 10);
+
+    if (isNaN(lastNum)) {
+      const count = await this.prisma.waybill.count({ where: { tenantId } });
+      return `IRS-${year}-${String(count + 1).padStart(5, '0')}`;
+    }
+
+    return `IRS-${year}-${String(lastNum + 1).padStart(5, '0')}`;
   }
 
   private async generateInvoiceNumber(
     tenantId: string,
     tx: Prisma.TransactionClient,
   ): Promise<string> {
-    const count = await tx.invoice.count({ where: { tenantId } });
     const year = new Date().getFullYear();
-    return `FAT-${year}-${String(count + 1).padStart(5, '0')}`;
+    const lastInvoice = await tx.invoice.findFirst({
+      where: {
+        tenantId,
+        invoiceNumber: { startsWith: `FAT-${year}-` },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { invoiceNumber: true },
+    });
+
+    if (!lastInvoice) {
+      return `FAT-${year}-00001`;
+    }
+
+    const parts = lastInvoice.invoiceNumber.split('-');
+    const lastNumStr = parts[parts.length - 1];
+    const lastNum = parseInt(lastNumStr, 10);
+
+    if (isNaN(lastNum)) {
+      const count = await tx.invoice.count({ where: { tenantId } });
+      return `FAT-${year}-${String(count + 1).padStart(5, '0')}`;
+    }
+
+    return `FAT-${year}-${String(lastNum + 1).padStart(5, '0')}`;
   }
 
   async create(createWaybillDto: CreateWaybillDto, tenantId: string) {

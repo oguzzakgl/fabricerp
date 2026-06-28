@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiClient from '../api/client';
 
@@ -6,6 +7,7 @@ interface User {
   name: string | null;
   email: string;
   role: string;
+  tenantId: string | null;
 }
 
 interface Tenant {
@@ -37,6 +39,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [loading, setLoading] = useState<boolean>(true);
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    delete apiClient.defaults.headers.common['Authorization'];
+    setUser(null);
+    setTenant(null);
+    setToken(null);
+    window.location.href = 'http://localhost:4000/login';
+  };
 
   useEffect(() => {
     const initAuth = async () => {
@@ -74,15 +85,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(newUser);
     setTenant(newTenant);
     setToken(newToken);
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    delete apiClient.defaults.headers.common['Authorization'];
-    setUser(null);
-    setTenant(null);
-    setToken(null);
-    // Clear other cached data if needed
   };
 
   return (

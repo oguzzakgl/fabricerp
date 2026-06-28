@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateYarnStockDto } from './dto/create-yarn-stock.dto';
 import { UpdateYarnStockDto } from './dto/update-yarn-stock.dto';
@@ -16,7 +20,9 @@ export class YarnStocksService {
       throw new NotFoundException(`Tedarikçi Cari hesabı bulunamadı.`);
     }
     if (supplier.type !== 'SUPPLIER' && supplier.type !== 'BOTH') {
-      throw new BadRequestException(`Seçilen Cari hesabın tipi SUPPLIER veya BOTH olmalıdır.`);
+      throw new BadRequestException(
+        `Seçilen Cari hesabın tipi SUPPLIER veya BOTH olmalıdır.`,
+      );
     }
 
     return this.prisma.yarnStock.create({
@@ -55,7 +61,9 @@ export class YarnStocksService {
         { yarnType: { contains: params.search, mode: 'insensitive' } },
         { lotNumber: { contains: params.search, mode: 'insensitive' } },
         { color: { contains: params.search, mode: 'insensitive' } },
-        { supplier: { name: { contains: params.search, mode: 'insensitive' } } },
+        {
+          supplier: { name: { contains: params.search, mode: 'insensitive' } },
+        },
       ];
     }
 
@@ -88,12 +96,18 @@ export class YarnStocksService {
       },
     });
     if (!yarnStock) {
-      throw new NotFoundException(`ID'si '${id}' olan İplik envanter kaydı bulunamadı.`);
+      throw new NotFoundException(
+        `ID'si '${id}' olan İplik envanter kaydı bulunamadı.`,
+      );
     }
     return yarnStock;
   }
 
-  async update(id: string, updateYarnStockDto: UpdateYarnStockDto, tenantId: string) {
+  async update(
+    id: string,
+    updateYarnStockDto: UpdateYarnStockDto,
+    tenantId: string,
+  ) {
     await this.findOne(id, tenantId);
 
     if (updateYarnStockDto.supplierId) {
@@ -104,7 +118,9 @@ export class YarnStocksService {
         throw new NotFoundException(`Tedarikçi Cari hesabı bulunamadı.`);
       }
       if (supplier.type !== 'SUPPLIER' && supplier.type !== 'BOTH') {
-        throw new BadRequestException(`Seçilen Cari hesabın tipi SUPPLIER veya BOTH olmalıdır.`);
+        throw new BadRequestException(
+          `Seçilen Cari hesabın tipi SUPPLIER veya BOTH olmalıdır.`,
+        );
       }
     }
 

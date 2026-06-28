@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 
@@ -12,21 +13,48 @@ export class InvoicesService {
   constructor(private prisma: PrismaService) {}
 
   private async generateInvoiceNumber(tenantId: string): Promise<string> {
-    const count = await this.prisma.invoice.count({ where: { tenantId } });
     const year = new Date().getFullYear();
-    return `FAT-${year}-${String(count + 1).padStart(5, '0')}`;
+    const lastInvoice = await this.prisma.invoice.findFirst({
+      where: {
+        tenantId,
+        invoiceNumber: { startsWith: `FAT-${year}-` },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { invoiceNumber: true },
+    });
+
+    if (!lastInvoice) {
+      return `FAT-${year}-00001`;
+    }
+
+    const parts = lastInvoice.invoiceNumber.split('-');
+    const lastNumStr = parts[parts.length - 1];
+    const lastNum = parseInt(lastNumStr, 10);
+
+    if (isNaN(lastNum)) {
+      const count = await this.prisma.invoice.count({ where: { tenantId } });
+      return `FAT-${year}-${String(count + 1).padStart(5, '0')}`;
+    }
+
+    return `FAT-${year}-${String(lastNum + 1).padStart(5, '0')}`;
   }
 
   async create(createInvoiceDto: CreateInvoiceDto, tenantId: string) {
-    const { orderId, customerId, issueDate, dueDate, taxRate, notes, items } = createInvoiceDto;
+    const { orderId, customerId, issueDate, dueDate, taxRate, notes, items } =
+      createInvoiceDto;
 
     // Validate customer under this tenant
-    const customer = await this.prisma.account.findFirst({ where: { id: customerId, tenantId } });
-    if (!customer) throw new NotFoundException(`Müşteri Cari hesabı bulunamadı.`);
+    const customer = await this.prisma.account.findFirst({
+      where: { id: customerId, tenantId },
+    });
+    if (!customer)
+      throw new NotFoundException(`Müşteri Cari hesabı bulunamadı.`);
 
     // Validate order if provided under this tenant
     if (orderId) {
-      const order = await this.prisma.order.findFirst({ where: { id: orderId, tenantId } });
+      const order = await this.prisma.order.findFirst({
+        where: { id: orderId, tenantId },
+      });
       if (!order) throw new NotFoundException(`Sipariş bulunamadı.`);
       if (order.status === 'invoiced') {
         throw new BadRequestException(`Bu sipariş zaten faturalandırılmış.`);
@@ -113,14 +141,16 @@ export class InvoicesService {
     const limit = Number(params.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const where: any = { tenantId };
+    const where: Prisma.InvoiceWhereInput = { tenantId };
     if (params.status) where.status = params.status;
     if (params.customerId) where.customerId = params.customerId;
 
     if (params.search) {
       where.OR = [
         { invoiceNumber: { contains: params.search, mode: 'insensitive' } },
-        { customer: { name: { contains: params.search, mode: 'insensitive' } } },
+        {
+          customer: { name: { contains: params.search, mode: 'insensitive' } },
+        },
       ];
     }
 
@@ -152,11 +182,16 @@ export class InvoicesService {
         financialTransactions: true,
       },
     });
-    if (!invoice) throw new NotFoundException(`ID'si '${id}' olan Fatura bulunamadı.`);
+    if (!invoice)
+      throw new NotFoundException(`ID'si '${id}' olan Fatura bulunamadı.`);
     return invoice;
   }
 
-  async update(id: string, updateInvoiceDto: UpdateInvoiceDto, tenantId: string) {
+  async update(
+    id: string,
+    updateInvoiceDto: UpdateInvoiceDto,
+    tenantId: string,
+  ) {
     const invoice = await this.findOne(id, tenantId);
     if (invoice.status === 'paid') {
       throw new BadRequestException('Ödenmiş fatura güncellenemez.');

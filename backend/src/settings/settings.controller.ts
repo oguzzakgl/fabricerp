@@ -3,6 +3,7 @@ import {
   Get,
   Body,
   Post,
+  Patch,
   Delete,
   Param,
   Req,
@@ -89,5 +90,63 @@ export class SettingsController {
   @Delete('super/invites/:id')
   superDeleteInvite(@Req() req: RequestWithUser, @Param('id') id: string) {
     return this.settingsService.superDeleteInvite(req.user.userId, id);
+  }
+
+  @Post('super/tenants')
+  superCreateTenant(
+    @Req() req: RequestWithUser,
+    @Body()
+    body: { tenantName: string; adminEmail: string; adminPassword: string },
+  ) {
+    return this.settingsService.superCreateTenant(req.user.userId, body);
+  }
+
+  @Get('super/tenants/:id')
+  superGetTenant(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.settingsService.superGetTenant(req.user.userId, id);
+  }
+
+  @Patch('super/users/:id/password')
+  superUpdateUserPassword(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.settingsService.superUpdateUserPassword(
+      req.user.userId,
+      id,
+      newPassword,
+    );
+  }
+
+  @Patch('super/users/:id/email')
+  superUpdateUserEmail(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body('newEmail') newEmail: string,
+  ) {
+    return this.settingsService.superUpdateUserEmail(
+      req.user.userId,
+      id,
+      newEmail,
+    );
+  }
+
+  @Post('super/tenants/:tenantId/users')
+  superAddUserToTenant(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Body() body: CreateUserDto,
+  ) {
+    return this.settingsService.superAddUserToTenant(
+      req.user.userId,
+      tenantId,
+      body,
+    );
+  }
+
+  @Delete('super/users/:id')
+  superDeleteUser(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.settingsService.superDeleteUser(req.user.userId, id);
   }
 }

@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseUUIDPipe, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Put,
+  Param,
+  Delete,
+  Query,
+  ParseUUIDPipe,
+  UseGuards,
+} from '@nestjs/common';
 import { YarnStocksService } from './yarn-stocks.service';
 import { CreateYarnStockDto } from './dto/create-yarn-stock.dto';
 import { UpdateYarnStockDto } from './dto/update-yarn-stock.dto';
@@ -31,7 +42,10 @@ export class YarnStocksController {
     @Query('search') search?: string,
     @Query('supplierId') supplierId?: string,
   ) {
-    return this.yarnStocksService.findAll({ page, limit, search, supplierId }, tenantId);
+    return this.yarnStocksService.findAll(
+      { page, limit, search, supplierId },
+      tenantId,
+    );
   }
 
   @Get(':id')
@@ -52,10 +66,7 @@ export class YarnStocksController {
   }
 
   @Delete(':id')
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantId() tenantId: string,
-  ) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.yarnStocksService.remove(id, tenantId);
   }
 }

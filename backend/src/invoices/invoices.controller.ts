@@ -38,7 +38,10 @@ export class InvoicesController {
     @Query('customerId') customerId?: string,
     @Query('status') status?: string,
   ) {
-    return this.invoicesService.findAll({ page, limit, search, customerId, status }, tenantId);
+    return this.invoicesService.findAll(
+      { page, limit, search, customerId, status },
+      tenantId,
+    );
   }
 
   @Get(':id')
@@ -59,10 +62,7 @@ export class InvoicesController {
   }
 
   @Delete(':id')
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantId() tenantId: string,
-  ) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.invoicesService.remove(id, tenantId);
   }
 }

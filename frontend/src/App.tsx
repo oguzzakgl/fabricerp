@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
 import MainLayout from './components/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './contexts/AuthContext';
@@ -13,11 +14,19 @@ import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
 import Waybills from './pages/Waybills';
 import Finance from './pages/Finance';
-import Login from './pages/Login';
-import Register from './pages/Register';
 import Onboarding from './pages/Onboarding';
 import SuperAdmin from './pages/SuperAdmin';
+import Tenants from './pages/SuperAdmin/Tenants';
+import TenantDetail from './pages/SuperAdmin/TenantDetail';
+import SuperUsers from './pages/SuperAdmin/Users';
+import Invites from './pages/SuperAdmin/Invites';
 
+const NavigateToMarketing: React.FC<{ path: string }> = ({ path }) => {
+  useEffect(() => {
+    window.location.href = `http://localhost:4000${path}`;
+  }, [path]);
+  return null;
+};
 
 function App() {
   return (
@@ -25,8 +34,8 @@ function App() {
       <BrowserRouter>
         <Routes>
           {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<NavigateToMarketing path="/login" />} />
+          <Route path="/register" element={<NavigateToMarketing path="/register" />} />
 
           {/* Protected App Routes */}
           <Route element={<ProtectedRoute />}>
@@ -42,6 +51,10 @@ function App() {
               <Route path="waybills" element={<Waybills />} />
               <Route path="finance" element={<Finance />} />
               <Route path="superadmin" element={<SuperAdmin />} />
+              <Route path="superadmin/tenants" element={<Tenants />} />
+              <Route path="superadmin/tenants/:id" element={<TenantDetail />} />
+              <Route path="superadmin/users" element={<SuperUsers />} />
+              <Route path="superadmin/invites" element={<Invites />} />
             </Route>
           </Route>
 

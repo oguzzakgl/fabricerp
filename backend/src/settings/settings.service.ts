@@ -265,4 +265,174 @@ export class SettingsService {
 
     return this.prisma.inviteCode.delete({ where: { id } });
   }
+
+  async superCreateTenant(
+    activeUserId: string,
+    data: { tenantName: string; adminEmail: string; adminPassword: string },
+  ) {
+    const activeUser = await this.prisma.user.findUnique({
+      where: { id: activeUserId },
+    });
+    if (!activeUser || activeUser.tenantId !== null) {
+      throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
+    }
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.adminEmail.toLowerCase() },
+    });
+    if (existing) {
+      throw new BadRequestException('Bu e-posta adresi zaten kullanımda.');
+    }
+    const passwordHash = await bcrypt.hash(data.adminPassword, 10);
+    return this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.create({
+        data: { name: data.tenantName, email: data.adminEmail.toLowerCase() },
+      });
+      const user = await tx.user.create({
+        data: {
+          email: data.adminEmail.toLowerCase(),
+          password: passwordHash,
+          role: 'ADMIN',
+          tenantId: tenant.id,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+      return { ...tenant, users: [user] };
+    });
+  }
+
+  async superGetTenant(activeUserId: string, tenantId: string) {
+    const activeUser = await this.prisma.user.findUnique({
+      where: { id: activeUserId },
+    });
+    if (!activeUser || activeUser.tenantId !== null) {
+      throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
+    }
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!tenant) throw new NotFoundException('Firma bulunamadı.');
+    return tenant;
+  }
+
+  async superUpdateUserPassword(
+    activeUserId: string,
+    userId: string,
+    newPassword: string,
+  ) {
+    const activeUser = await this.prisma.user.findUnique({
+      where: { id: activeUserId },
+    });
+    if (!activeUser || activeUser.tenantId !== null) {
+      throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
+    }
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('Şifre en az 6 karakter olmalıdır.');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: passwordHash },
+    });
+    return { success: true };
+  }
+
+  async superUpdateUserEmail(
+    activeUserId: string,
+    userId: string,
+    newEmail: string,
+  ) {
+    const activeUser = await this.prisma.user.findUnique({
+      where: { id: activeUserId },
+    });
+    if (!activeUser || activeUser.tenantId !== null) {
+      throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
+    }
+    if (!newEmail || !newEmail.includes('@')) {
+      throw new BadRequestException('Geçerli bir e-posta adresi giriniz.');
+    }
+    const existing = await this.prisma.user.findUnique({
+      where: { email: newEmail.toLowerCase() },
+    });
+    if (existing && existing.id !== userId) {
+      throw new BadRequestException('Bu e-posta adresi zaten kullanımda.');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { email: newEmail.toLowerCase() },
+    });
+    return { success: true };
+  }
+
+  async superAddUserToTenant(
+    activeUserId: string,
+    tenantId: string,
+    data: CreateUserDto,
+  ) {
+    const activeUser = await this.prisma.user.findUnique({
+      where: { id: activeUserId },
+    });
+    if (!activeUser || activeUser.tenantId !== null) {
+      throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
+    }
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    if (!tenant) throw new NotFoundException('Firma bulunamadı.');
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.email.toLowerCase() },
+    });
+    if (existing)
+      throw new BadRequestException('Bu e-posta adresi zaten kullanımda.');
+    const passwordHash = await bcrypt.hash(data.password, 10);
+    return this.prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email.toLowerCase(),
+        password: passwordHash,
+        role: data.role,
+        tenantId,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async superDeleteUser(activeUserId: string, userId: string) {
+    const activeUser = await this.prisma.user.findUnique({
+      where: { id: activeUserId },
+    });
+    if (!activeUser || activeUser.tenantId !== null) {
+      throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
+    }
+    if (userId === activeUserId) {
+      throw new BadRequestException('Kendi hesabınızı silemezsiniz.');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Kullanıcı bulunamadı.');
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { success: true };
+  }
 }

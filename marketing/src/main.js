@@ -135,6 +135,13 @@ function renderLanding() {
           <h3>Finans (Çek/Senet)</h3>
           <p>Kasa, banka, çek ve senet hareketlerinizi tahsil, ödeme ve ciro durumlarıyla kontrol edin.</p>
         </div>
+        <div class="glass-card feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-outlined">photo_camera</span>
+          </div>
+          <h3>Yapay Zeka Destekli OCR Tarama</h3>
+          <p>Kumaş toplarının etiketlerini kameranızla veya galeri resimleriyle taratıp saniyeler içinde akıllı stok girişi yapın.</p>
+        </div>
       </div>
     </div>
   `;
@@ -179,6 +186,12 @@ function renderRegister() {
               <span class="material-symbols-outlined input-icon">key</span>
               <input type="text" id="inviteCode" class="form-input" placeholder="Yöneticinizden aldığınız kod" required />
             </div>
+            <div style="text-align: right; margin-top: 0.35rem;">
+              <button type="button" id="request-invite-btn" style="background: none; border: none; color: #10b981; text-decoration: underline; font-size: 0.8rem; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem;">
+                <span class="material-symbols-outlined" style="font-size: 0.95rem;">mail</span>
+                Davet Kodunuz Yok mu? Kodu Talep Et
+              </button>
+            </div>
           </div>
           
           <button type="submit" id="submit-btn" class="btn btn-accent" style="width: 100%; padding: 0.85rem; font-size: 1rem; margin-top: 1rem;">
@@ -192,6 +205,67 @@ function renderRegister() {
       </div>
     </div>
   `;
+
+  // Bind Request Invite Button
+  const requestInviteBtn = document.getElementById('request-invite-btn');
+  requestInviteBtn.addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const alertBox = document.getElementById('alert-box');
+    
+    if (!email) {
+      alertBox.innerHTML = `
+        <div class="alert alert-error">
+          <span class="material-symbols-outlined">error</span>
+          Lütfen önce E-posta Adresi alanını doldurunuz.
+        </div>
+      `;
+      return;
+    }
+    if (!email.includes('@')) {
+      alertBox.innerHTML = `
+        <div class="alert alert-error">
+          <span class="material-symbols-outlined">error</span>
+          Lütfen geçerli bir e-posta adresi giriniz.
+        </div>
+      `;
+      return;
+    }
+
+    alertBox.innerHTML = '';
+    requestInviteBtn.disabled = true;
+    requestInviteBtn.innerText = 'Talebiniz İletiliyor...';
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/request-invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || 'Talebiniz iletilemedi.');
+      }
+      
+      alertBox.innerHTML = `
+        <div class="alert alert-success">
+          <span class="material-symbols-outlined">check_circle</span>
+          Davet kodu talebiniz yöneticiye başarıyla iletilmiştir. İnceleme sonrası kodunuz e-posta adresinize gönderilecektir.
+        </div>
+      `;
+      requestInviteBtn.innerText = 'Davet Kodu Talebiniz Alındı ✅';
+    } catch (err) {
+      requestInviteBtn.disabled = false;
+      requestInviteBtn.innerText = 'Davet Kodunuz Yok mu? Kodu Talep Et';
+      alertBox.innerHTML = `
+        <div class="alert alert-error">
+          <span class="material-symbols-outlined">error</span>
+          ${err.message || 'Bir hata oluştu.'}
+        </div>
+      `;
+    }
+  });
 
   // Bind Form Submit
   const form = document.getElementById('register-form');

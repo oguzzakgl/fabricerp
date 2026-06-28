@@ -10,15 +10,17 @@ export class FabricCardsService {
   async upsert(dto: UpsertFabricCardDto, tenantId: string) {
     const { fabricType, pricePerMeter, imageUrl, colorMapping } = dto;
 
+    const normalizedType = fabricType.trim().toLocaleUpperCase('tr-TR');
+
     return this.prisma.fabricCard.upsert({
       where: {
         fabricType_tenantId: {
-          fabricType: fabricType.trim(),
+          fabricType: normalizedType,
           tenantId,
         },
       },
       create: {
-        fabricType: fabricType.trim(),
+        fabricType: normalizedType,
         pricePerMeter: pricePerMeter ?? 0,
         imageUrl: imageUrl ?? null,
         colorMapping: (colorMapping as Prisma.InputJsonValue) ?? {},
@@ -46,7 +48,7 @@ export class FabricCardsService {
     return this.prisma.fabricCard.findUnique({
       where: {
         fabricType_tenantId: {
-          fabricType: fabricType.trim(),
+          fabricType: fabricType.trim().toLocaleUpperCase('tr-TR'),
           tenantId,
         },
       },

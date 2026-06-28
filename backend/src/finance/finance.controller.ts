@@ -40,7 +40,10 @@ export class FinanceController {
     @Query('type') type?: string,
     @Query('status') status?: string,
   ) {
-    return this.financeService.findAll({ page, limit, search, accountId, type, status }, tenantId);
+    return this.financeService.findAll(
+      { page, limit, search, accountId, type, status },
+      tenantId,
+    );
   }
 
   @Get(':id')
@@ -77,10 +80,7 @@ export class FinanceController {
   }
 
   @Delete(':id')
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantId() tenantId: string,
-  ) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.financeService.remove(id, tenantId);
   }
 }

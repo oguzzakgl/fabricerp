@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFinancialTransactionDto } from './dto/create-financial-transaction.dto';
 import { UpdateFinancialTransactionDto } from './dto/update-financial-transaction.dto';
@@ -112,7 +116,11 @@ export class FinanceService {
     return transaction;
   }
 
-  async update(id: string, updateDto: UpdateFinancialTransactionDto, tenantId: string) {
+  async update(
+    id: string,
+    updateDto: UpdateFinancialTransactionDto,
+    tenantId: string,
+  ) {
     const transaction = await this.findOne(id, tenantId);
 
     const updateData: any = {
@@ -143,7 +151,8 @@ export class FinanceService {
       throw new BadRequestException('Bu işlem zaten tamamlanmış.');
     }
 
-    const nextStatus = transaction.direction === 'RECEIVABLE' ? 'collected' : 'paid';
+    const nextStatus =
+      transaction.direction === 'RECEIVABLE' ? 'collected' : 'paid';
 
     return this.prisma.financialTransaction.update({
       where: { id },
@@ -161,7 +170,9 @@ export class FinanceService {
   async endorse(id: string, tenantId: string) {
     const transaction = await this.findOne(id, tenantId);
     if (transaction.status !== 'pending') {
-      throw new BadRequestException('Yalnızca beklemedeki evraklar ciro edilebilir.');
+      throw new BadRequestException(
+        'Yalnızca beklemedeki evraklar ciro edilebilir.',
+      );
     }
 
     return this.prisma.financialTransaction.update({

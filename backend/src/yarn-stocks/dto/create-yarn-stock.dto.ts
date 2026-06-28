@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, IsOptional, IsUUID, IsNumber, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsUUID,
+  IsNumber,
+  Min,
+} from 'class-validator';
 
 export class CreateYarnStockDto {
   @IsNotEmpty()

@@ -17,9 +17,30 @@ export class OrdersService {
   ) {}
 
   private async generateOrderNumber(tenantId: string): Promise<string> {
-    const count = await this.prisma.order.count({ where: { tenantId } });
     const year = new Date().getFullYear();
-    return `SIP-${year}-${String(count + 1).padStart(5, '0')}`;
+    const lastOrder = await this.prisma.order.findFirst({
+      where: {
+        tenantId,
+        orderNumber: { startsWith: `SIP-${year}-` },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { orderNumber: true },
+    });
+
+    if (!lastOrder) {
+      return `SIP-${year}-00001`;
+    }
+
+    const parts = lastOrder.orderNumber.split('-');
+    const lastNumStr = parts[parts.length - 1];
+    const lastNum = parseInt(lastNumStr, 10);
+
+    if (isNaN(lastNum)) {
+      const count = await this.prisma.order.count({ where: { tenantId } });
+      return `SIP-${year}-${String(count + 1).padStart(5, '0')}`;
+    }
+
+    return `SIP-${year}-${String(lastNum + 1).padStart(5, '0')}`;
   }
 
   async create(createOrderDto: CreateOrderDto, tenantId: string) {

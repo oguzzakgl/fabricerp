@@ -12,6 +12,36 @@ const Register: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [requestInviteLoading, setRequestInviteLoading] = useState(false);
+  const [inviteRequested, setInviteRequested] = useState(false);
+
+  const handleRequestInvite = async () => {
+    if (!email) {
+      setError('Lütfen önce E-posta Adresi alanını doldurunuz.');
+      return;
+    }
+    if (!email.includes('@')) {
+      setError('Lütfen geçerli bir e-posta adresi giriniz.');
+      return;
+    }
+
+    setError(null);
+    setRequestInviteLoading(true);
+
+    try {
+      await apiClient.post('/auth/request-invite', { email });
+      setInviteRequested(true);
+      alert(
+        'Davet kodu talebiniz yöneticiye başarıyla iletilmiştir. İnceleme sonrası kodunuz e-posta adresinize gönderilecektir.',
+      );
+    } catch (err) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      const msg = errorObj.response?.data?.message || 'Talebiniz iletilemedi.';
+      setError(msg);
+    } finally {
+      setRequestInviteLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +190,21 @@ const Register: React.FC = () => {
                   className="w-full pl-10 pr-3 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-govde-metin focus:ring-2 focus:ring-bilgi-mavisi/30 focus:border-bilgi-mavisi outline-none transition-all"
                   placeholder="Yöneticinizden aldığınız kod"
                 />
+              </div>
+              <div className="pt-2 text-right">
+                <button
+                  type="button"
+                  onClick={handleRequestInvite}
+                  disabled={requestInviteLoading || inviteRequested}
+                  className="text-[12px] font-bold text-secondary hover:text-secondary/85 underline transition-all disabled:opacity-50 inline-flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[15px]">mail</span>
+                  {requestInviteLoading
+                    ? 'Talebiniz İletiliyor...'
+                    : inviteRequested
+                      ? 'Davet Kodu Talebiniz Alındı ✅'
+                      : 'Davet Kodunuz Yok mu? Kodu Talep Et'}
+                </button>
               </div>
             </div>
           </div>

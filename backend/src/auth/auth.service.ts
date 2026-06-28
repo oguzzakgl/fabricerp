@@ -1,15 +1,22 @@
-import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -68,6 +75,37 @@ export class AuthService {
 
     const token = this.jwtService.sign(payload);
 
+    // Kayıt bildirim maili gönder (Asenkron)
+    const adminNotificationEmail =
+      process.env.ADMIN_NOTIFICATION_EMAIL || 'info@fabricerp.com';
+    const subject = 'Yeni Kullanıcı Kaydı Bildirimi - FabricERP';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">Yeni Kullanıcı Kaydoldu</h2>
+        <p>Sisteminize yeni bir kullanıcı üye olmuştur. Detaylar aşağıdadır:</p>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+          <tr>
+            <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #f0f0f0; width: 150px;">E-posta Adresi:</td>
+            <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;"><a href="mailto:${dto.email}">${dto.email}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #f0f0f0;">Kullanılan Davet Kodu:</td>
+            <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${dto.inviteCode}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #f0f0f0;">Kayıt Tarihi:</td>
+            <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${new Date().toLocaleString('tr-TR')}</td>
+          </tr>
+        </table>
+        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta FabricERP sistemi tarafından otomatik olarak gönderilmiştir.</p>
+      </div>
+    `;
+    this.mailService
+      .sendMail(adminNotificationEmail, subject, html)
+      .catch((err) => {
+        console.error('Kayıt bildirim maili gönderilemedi:', err);
+      });
+
     return {
       token,
       user: {
@@ -111,6 +149,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        tenantId: user.tenantId,
       },
       tenant: user.tenant
         ? {
@@ -137,6 +176,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        tenantId: user.tenantId,
       },
       tenant: user.tenant
         ? {
@@ -154,7 +194,10 @@ export class AuthService {
     };
   }
 
-  async completeOnboarding(userId: string, dto: { name: string; tenantName: string }) {
+  async completeOnboarding(
+    userId: string,
+    dto: { name: string; tenantName: string },
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -164,7 +207,9 @@ export class AuthService {
     }
 
     if (user.tenantId) {
-      throw new BadRequestException('Bu kullanıcı için zaten bir firma kurulu.');
+      throw new BadRequestException(
+        'Bu kullanıcı için zaten bir firma kurulu.',
+      );
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -198,6 +243,41 @@ export class AuthService {
 
     const token = this.jwtService.sign(payload);
 
+    // Firma kurulum/onboarding bildirim maili gönder (Asenkron)
+    const adminNotificationEmail =
+      process.env.ADMIN_NOTIFICATION_EMAIL || 'info@fabricerp.com';
+    const completeSubject = 'Yeni Firma Kurulumu Bildirimi - FabricERP';
+    const completeHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #10b981; border-bottom: 2px solid #10b981; padding-bottom: 10px;">Yeni Firma Kuruldu</h2>
+        <p>Yeni kaydolan bir kullanıcı onboarding adımını tamamlayarak firmasını kurmuştur. Detaylar:</p>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+          <tr>
+            <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #f0f0f0; width: 150px;">Firma/Tenant Adı:</td>
+            <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${dto.tenantName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #f0f0f0;">Yönetici Adı Soyadı:</td>
+            <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${dto.name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #f0f0f0;">Yönetici E-posta:</td>
+            <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;"><a href="mailto:${user.email}">${user.email}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #f0f0f0;">Kurulum Tarihi:</td>
+            <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${new Date().toLocaleString('tr-TR')}</td>
+          </tr>
+        </table>
+        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta FabricERP sistemi tarafından otomatik olarak gönderilmiştir.</p>
+      </div>
+    `;
+    this.mailService
+      .sendMail(adminNotificationEmail, completeSubject, completeHtml)
+      .catch((err) => {
+        console.error('Firma kurulum bildirim maili gönderilemedi:', err);
+      });
+
     return {
       token,
       user: {
@@ -210,6 +290,38 @@ export class AuthService {
         id: result.tenant.id,
         name: result.tenant.name,
       },
+    };
+  }
+
+  async requestInvite(email: string) {
+    if (!email || !email.includes('@')) {
+      throw new BadRequestException('Geçerli bir e-posta adresi giriniz.');
+    }
+
+    const adminNotificationEmail =
+      process.env.ADMIN_NOTIFICATION_EMAIL || 'kaanakgl1907@gmail.com';
+    const subject = 'Davet Kodu Talebi - FabricERP';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #f59e0b; border-bottom: 2px solid #f59e0b; padding-bottom: 10px;">Yeni Davet Kodu Talebi</h2>
+        <p>Aşağıdaki e-posta adresine sahip kullanıcı sisteme kayıt olabilmek için davet kodu talep ediyor:</p>
+        <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #f3f4f6; margin: 15px 0;">
+          <strong>E-posta Adresi:</strong> <a href="mailto:${email}">${email}</a>
+        </div>
+        <p>Müşteriye davet kodu göndermek için:</p>
+        <ol>
+          <li>SuperAdmin panelinize giriş yapın.</li>
+          <li><strong>Davet Kodları</strong> sekmesinden yeni bir kod oluşturun.</li>
+          <li>Oluşturduğunuz kodu bu e-posta adresine yanıt vererek veya doğrudan ileterek gönderin.</li>
+        </ol>
+        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta FabricERP sistemi tarafından otomatik olarak gönderilmiştir.</p>
+      </div>
+    `;
+
+    await this.mailService.sendMail(adminNotificationEmail, subject, html);
+    return {
+      success: true,
+      message: 'Davet kodu talebiniz yöneticiye iletilmiştir.',
     };
   }
 }

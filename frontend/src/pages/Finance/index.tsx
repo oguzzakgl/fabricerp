@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../../api/client';
+import { Modal } from 'antd';
 
 interface Account {
   id: string;
@@ -53,7 +54,20 @@ const Finance: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const mapBackendToFrontendDoc = (tx: any): FinancialDoc => {
+  interface BackendDoc {
+    id: string;
+    type: string;
+    status: string;
+    dueDate: string;
+    referenceNumber: string;
+    amount: number | string;
+    account?: {
+      name?: string;
+      code?: string;
+    } | null;
+  }
+
+  const mapBackendToFrontendDoc = useCallback((tx: BackendDoc): FinancialDoc => {
     let type: 'CHEQUE' | 'BILL' = 'CHEQUE';
     if (tx.type === 'BILL_OF_EXCHANGE') {
       type = 'BILL';
@@ -89,7 +103,7 @@ const Finance: React.FC = () => {
       dueDate: dueDateStr,
       status,
     };
-  };
+  }, []);
 
   const seedDatabaseDocs = async (customer: Account, existingDocsCount: number) => {
     if (existingDocsCount > 0) return;
@@ -153,7 +167,7 @@ const Finance: React.FC = () => {
     }
   };
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     setLoading(true);
     try {
       const response = await apiClient.get('/finance', { params: { limit: 100 } });
@@ -166,9 +180,10 @@ const Finance: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [mapBackendToFrontendDoc]);
 
   useEffect(() => {
+    let active = true;
     const initData = async () => {
       setLoadingCustomers(true);
       try {
@@ -176,11 +191,13 @@ const Finance: React.FC = () => {
         const filtered = response.data.data.filter(
           (acc: Account) => acc.type === 'CUSTOMER' || acc.type === 'BOTH'
         );
-        setCustomers(filtered);
+        if (active) {
+          setCustomers(filtered);
+        }
 
         // Fetch documents
         const count = await fetchDocuments();
-        if (count === 0 && filtered.length > 0) {
+        if (count === 0 && filtered.length > 0 && active) {
           // Seed DB
           await seedDatabaseDocs(filtered[0], count);
           await fetchDocuments();
@@ -188,12 +205,17 @@ const Finance: React.FC = () => {
       } catch (err) {
         console.error(err);
       } finally {
-        setLoadingCustomers(false);
+        if (active) {
+          setLoadingCustomers(false);
+        }
       }
     };
 
-    initData();
-  }, []);
+    void initData();
+    return () => {
+      active = false;
+    };
+  }, [fetchDocuments]);
 
   // Stats
   const pendingAmount = documents
@@ -251,35 +273,53 @@ const Finance: React.FC = () => {
       setTimeout(() => {
         setSuccessMessage(null);
       }, 5000);
-    } catch (err: any) {
+    } catch (err) {
+      const errorObj = err as { response?: { data?: { message?: string } }; message?: string };
       console.error(err);
-      alert('Tahsilat kaydedilirken bir hata oluştu: ' + (err.response?.data?.message || err.message));
+      alert('Tahsilat kaydedilirken bir hata oluştu: ' + (errorObj.response?.data?.message || errorObj.message));
     }
   };
 
-  const handleEndorseDoc = async (doc: FinancialDoc) => {
-    if (!window.confirm(`"${doc.docNumber}" no'lu evrak ciro edilecek. Emin misiniz?`)) return;
-    try {
-      const response = await apiClient.patch(`/finance/${doc.id}/endorse`);
-      const updatedDoc = mapBackendToFrontendDoc(response.data);
-      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? updatedDoc : d)));
-      setSuccessMessage(`Evrak başarıyla ciro edildi: ${doc.docNumber}`);
-      setTimeout(() => setSuccessMessage(null), 5000);
-    } catch (err: any) {
-      alert('Ciro işlemi sırasında hata oluştu: ' + (err.response?.data?.message || err.message));
-    }
+  const handleEndorseDoc = (doc: FinancialDoc) => {
+    Modal.confirm({
+      title: 'Evrak Ciro Et',
+      content: `"${doc.docNumber}" no'lu evrak ciro edilecek. Emin misiniz?`,
+      okText: 'Evet, Ciro Et',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          const response = await apiClient.patch(`/finance/${doc.id}/endorse`);
+          const updatedDoc = mapBackendToFrontendDoc(response.data);
+          setDocuments((prev) => prev.map((d) => (d.id === doc.id ? updatedDoc : d)));
+          setSuccessMessage(`Evrak başarıyla ciro edildi: ${doc.docNumber}`);
+          setTimeout(() => setSuccessMessage(null), 5000);
+        } catch (err) {
+          const errorObj = err as { response?: { data?: { message?: string } }; message?: string };
+          alert('Ciro işlemi sırasında hata oluştu: ' + (errorObj.response?.data?.message || errorObj.message));
+        }
+      }
+    });
   };
 
-  const handleDeleteDoc = async (doc: FinancialDoc) => {
-    if (!window.confirm(`"${doc.docNumber}" no'lu evrak silinecek. Bu işlem geri alınamaz!`)) return;
-    try {
-      await apiClient.delete(`/finance/${doc.id}`);
-      setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
-      setSuccessMessage(`Evrak silindi: ${doc.docNumber}`);
-      setTimeout(() => setSuccessMessage(null), 5000);
-    } catch (err: any) {
-      alert('Silme işlemi sırasında hata oluştu: ' + (err.response?.data?.message || err.message));
-    }
+  const handleDeleteDoc = (doc: FinancialDoc) => {
+    Modal.confirm({
+      title: 'Evrağı Sil',
+      content: `"${doc.docNumber}" no'lu evrak silinecek. Bu işlem geri alınamaz!`,
+      okText: 'Evet, Sil',
+      okType: 'danger',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await apiClient.delete(`/finance/${doc.id}`);
+          setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+          setSuccessMessage(`Evrak silindi: ${doc.docNumber}`);
+          setTimeout(() => setSuccessMessage(null), 5000);
+        } catch (err) {
+          const errorObj = err as { response?: { data?: { message?: string } }; message?: string };
+          alert('Silme işlemi sırasında hata oluştu: ' + (errorObj.response?.data?.message || errorObj.message));
+        }
+      }
+    });
   };
 
   const handleCreateDoc = async (e: React.FormEvent) => {
@@ -324,9 +364,10 @@ const Finance: React.FC = () => {
       setTimeout(() => {
         setSuccessMessage(null);
       }, 5000);
-    } catch (err: any) {
+    } catch (err) {
+      const errorObj = err as { response?: { data?: { message?: string } }; message?: string };
       console.error(err);
-      alert('Yeni evrak kaydedilirken bir hata oluştu: ' + (err.response?.data?.message || err.message));
+      alert('Yeni evrak kaydedilirken bir hata oluştu: ' + (errorObj.response?.data?.message || errorObj.message));
     }
   };
 

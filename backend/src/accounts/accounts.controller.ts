@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseUUIDPipe, UseGuards, ParseArrayPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Put,
+  Param,
+  Delete,
+  Query,
+  ParseUUIDPipe,
+  UseGuards,
+  ParseArrayPipe,
+} from '@nestjs/common';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
@@ -20,7 +32,8 @@ export class AccountsController {
 
   @Post('bulk')
   createBulk(
-    @Body(new ParseArrayPipe({ items: CreateAccountDto })) dtos: CreateAccountDto[],
+    @Body(new ParseArrayPipe({ items: CreateAccountDto }))
+    dtos: CreateAccountDto[],
     @TenantId() tenantId: string,
   ) {
     return this.accountsService.createBulk(dtos, tenantId);
@@ -39,7 +52,10 @@ export class AccountsController {
     @Query('search') search?: string,
     @Query('type') type?: string,
   ) {
-    return this.accountsService.findAll({ page, limit, search, type }, tenantId);
+    return this.accountsService.findAll(
+      { page, limit, search, type },
+      tenantId,
+    );
   }
 
   @Get(':id')
@@ -60,10 +76,7 @@ export class AccountsController {
   }
 
   @Delete(':id')
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantId() tenantId: string,
-  ) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.accountsService.remove(id, tenantId);
   }
 }

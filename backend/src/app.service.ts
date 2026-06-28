@@ -25,12 +25,14 @@ export class AppService {
     const yarnTotalKg = Number(yarnTotalAggregate._sum.currentKg || 0);
 
     // 3. Pending Cheques / Finance amount
-    const pendingTransactions = await this.prisma.financialTransaction.findMany({
-      where: {
-        tenantId,
-        status: 'pending',
+    const pendingTransactions = await this.prisma.financialTransaction.findMany(
+      {
+        where: {
+          tenantId,
+          status: 'pending',
+        },
       },
-    });
+    );
     const pendingChequesAmount = pendingTransactions.reduce(
       (sum, tx) => sum + Number(tx.amount),
       0,
@@ -72,7 +74,20 @@ export class AppService {
     // 6. Gelir & Gider Analizi (Last 6 months)
     const chartData = [];
     const now = new Date();
-    const monthsTr = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    const monthsTr = [
+      'Oca',
+      'Şub',
+      'Mar',
+      'Nis',
+      'May',
+      'Haz',
+      'Tem',
+      'Ağu',
+      'Eyl',
+      'Eki',
+      'Kas',
+      'Ara',
+    ];
 
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -91,7 +106,10 @@ export class AppService {
           },
         },
       });
-      const income = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount), 0);
+      const income = invoices.reduce(
+        (sum, inv) => sum + Number(inv.totalAmount),
+        0,
+      );
 
       // Expense: Yarn stocks purchased in this month
       const yarnStocks = await this.prisma.yarnStock.findMany({

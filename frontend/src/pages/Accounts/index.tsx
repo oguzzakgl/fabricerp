@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api/client';
+import { Modal } from 'antd';
 import * as XLSX from 'xlsx';
 
 interface Account {
@@ -75,25 +76,31 @@ const Accounts: React.FC = () => {
     );
   };
 
-  const handleConfirmReturn = async () => {
+  const handleConfirmReturn = () => {
     if (selectedReturnRollIds.length === 0) {
       alert('Lütfen iade edilecek en az bir kumaş topu seçiniz.');
       return;
     }
-    if (!window.confirm('Seçilen kumaş topları iade edilecek ve stoğa geri alınacaktır. Onaylıyor musunuz?')) return;
-
-    try {
-      await apiClient.post(`/orders/${selectedReturnOrder.id}/return`, {
-        rollIds: selectedReturnRollIds,
-      });
-      alert('İade işlemi başarıyla tamamlandı, toplar stoğa geri eklendi.');
-      setReturnModalOpen(false);
-      if (selectedAccount) {
-        handleOpenDetails(selectedAccount);
+    Modal.confirm({
+      title: 'Kumaş İade Onayı',
+      content: 'Seçilen kumaş topları iade edilecek ve stoğa geri alınacaktır. Onaylıyor musunuz?',
+      okText: 'Evet, İade Et',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await apiClient.post(`/orders/${selectedReturnOrder.id}/return`, {
+            rollIds: selectedReturnRollIds,
+          });
+          alert('İade işlemi başarıyla tamamlandı, toplar stoğa geri eklendi.');
+          setReturnModalOpen(false);
+          if (selectedAccount) {
+            handleOpenDetails(selectedAccount);
+          }
+        } catch (error: any) {
+          alert(error.response?.data?.message || 'İade işlemi sırasında bir hata oluştu.');
+        }
       }
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'İade işlemi sırasında bir hata oluştu.');
-    }
+    });
   };
 
   // Excel Import states
@@ -203,17 +210,24 @@ const Accounts: React.FC = () => {
     }
   };
 
-  const handleInvoiceWaybill = async (waybillId: string) => {
-    if (!window.confirm('Bu irsaliyeyi faturalandırmak istediğinize emin misiniz? Sipariş fiyatları baz alınarak otomatik fatura kesilecektir.')) return;
-    try {
-      await apiClient.post(`/waybills/${waybillId}/invoice`);
-      alert('İrsaliye başarıyla faturalandırıldı, fatura cari hesaba eklendi.');
-      if (selectedAccount) {
-        handleOpenDetails(selectedAccount);
+  const handleInvoiceWaybill = (waybillId: string) => {
+    Modal.confirm({
+      title: 'İrsaliye Faturalandırma',
+      content: 'Bu irsaliyeyi faturalandırmak istediğinize emin misiniz? Sipariş fiyatları baz alınarak otomatik fatura kesilecektir.',
+      okText: 'Evet, Faturalandır',
+      cancelText: 'İptal',
+      onOk: async () => {
+        try {
+          await apiClient.post(`/waybills/${waybillId}/invoice`);
+          alert('İrsaliye başarıyla faturalandırıldı, fatura cari hesaba eklendi.');
+          if (selectedAccount) {
+            handleOpenDetails(selectedAccount);
+          }
+        } catch (error: any) {
+          alert(error.response?.data?.message || 'Fatura oluşturulurken bir hata oluştu.');
+        }
       }
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'Fatura oluşturulurken bir hata oluştu.');
-    }
+    });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -236,15 +250,23 @@ const Accounts: React.FC = () => {
     }
   };
 
-  const handleDeleteAccount = async (account: Account, e: React.MouseEvent) => {
+  const handleDeleteAccount = (account: Account, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`"${account.name}" cari hesabı silinecek. Bu işlem geri alınamaz!`)) return;
-    try {
-      await apiClient.delete(`/accounts/${account.id}`);
-      fetchAccounts();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Silme işlemi sırasında hata oluştu.');
-    }
+    Modal.confirm({
+      title: 'Cari Hesap Silme',
+      content: `"${account.name}" cari hesabı silinecek. Bu işlem geri alınamaz!`,
+      okText: 'Evet, Sil',
+      okType: 'danger',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await apiClient.delete(`/accounts/${account.id}`);
+          fetchAccounts();
+        } catch (err: any) {
+          alert(err.response?.data?.message || 'Silme işlemi sırasında hata oluştu.');
+        }
+      }
+    });
   };
 
   const handleOpenImport = () => {

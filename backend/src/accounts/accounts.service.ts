@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
@@ -150,7 +154,11 @@ export class AccountsService {
     return account;
   }
 
-  async update(id: string, updateAccountDto: UpdateAccountDto, tenantId: string) {
+  async update(
+    id: string,
+    updateAccountDto: UpdateAccountDto,
+    tenantId: string,
+  ) {
     await this.findOne(id, tenantId);
 
     if (updateAccountDto.code) {
@@ -162,7 +170,9 @@ export class AccountsService {
         },
       });
       if (existing) {
-        throw new ConflictException(`Cari kodu '${updateAccountDto.code}' zaten kullanımda.`);
+        throw new ConflictException(
+          `Cari kodu '${updateAccountDto.code}' zaten kullanımda.`,
+        );
       }
     }
 
@@ -223,7 +233,9 @@ export class AccountsService {
             },
           });
           if (existing) {
-            throw new ConflictException(`Cari kodu '${code}' zaten kullanımda.`);
+            throw new ConflictException(
+              `Cari kodu '${code}' zaten kullanımda.`,
+            );
           }
         }
 

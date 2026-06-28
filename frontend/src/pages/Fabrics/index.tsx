@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Modal } from 'antd';
 import apiClient from '../../api/client';
 
 interface YarnOption {
@@ -19,6 +20,25 @@ interface RollDetail {
   notes: string;
 }
 
+interface OcrRecord {
+  id: string;
+  fabricType: string;
+  lengthM: number;
+  netWeightKg: number;
+  colorCode: string;
+  colorName: string;
+  quality: string;
+  fileName: string;
+}
+
+interface FabricCard {
+  id: string;
+  fabricType: string;
+  pricePerMeter: number;
+  imageUrl?: string | null;
+  colorMapping?: Record<string, string> | null;
+}
+
 interface GroupedFabric {
   fabricType: string;
   code: string;
@@ -33,8 +53,16 @@ interface GroupedFabric {
   colorCount: number;
 }
 
+const generateBarcode = () => {
+  return `BAR-KM-${Math.floor(100000 + Math.random() * 900000)}`;
+};
+
+const generateUniqueId = () => {
+  return `record_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+};
+
 const Fabrics: React.FC = () => {
-  const [rolls, setRolls] = useState<any[]>([]);
+  const [rolls, setRolls] = useState<RollDetail[]>([]);
   const [yarnStocks, setYarnStocks] = useState<YarnOption[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -61,13 +89,13 @@ const Fabrics: React.FC = () => {
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
   const [ocrLoading, setOcrLoading] = useState(false);
-  const [detectedData, setDetectedData] = useState<any | null>(null);
-  const [fabricCardsMap, setFabricCardsMap] = useState<{ [key: string]: any }>({});
+  const [detectedData, setDetectedData] = useState<OcrRecord | null>(null);
+  const [fabricCardsMap, setFabricCardsMap] = useState<Record<string, FabricCard>>({});
   const [colorModalOpen, setColorModalOpen] = useState(false);
   const [selectedFabricForColor, setSelectedFabricForColor] = useState<string>('');
   const [localColorMapping, setLocalColorMapping] = useState<{ [key: string]: string }>({});
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [detectedItems, setDetectedItems] = useState<any[]>([]);
+  const [detectedItems, setDetectedItems] = useState<OcrRecord[]>([]);
   const [activeEditIndex, setActiveEditIndex] = useState<number | null>(null);
   const [scanLogs, setScanLogs] = useState<{ time: string; text: string; type: 'success' | 'error' | 'warning' }[]>([]);
 
@@ -113,7 +141,7 @@ const Fabrics: React.FC = () => {
   const [hasRecipeInput, setHasRecipeInput] = useState(false);
   const [singleHasRecipeInput, setSingleHasRecipeInput] = useState(false);
 
-  const fetchRolls = async () => {
+  const fetchRolls = useCallback(async () => {
     setLoading(true);
     try {
       const response = await apiClient.get('/rolls', { 
@@ -128,12 +156,12 @@ const Fabrics: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchYarns = async () => {
+  const fetchYarns = useCallback(async () => {
     try {
       const res = await apiClient.get('/yarn-stocks', { params: { limit: 100 } });
-      const list = res.data.data.map((item: any) => ({
+      const list = res.data.data.map((item: { id: string; yarnType: string; lotNumber: string; unitPrice: string }) => ({
         id: item.id,
         yarnType: item.yarnType,
         lotNumber: item.lotNumber,
@@ -143,12 +171,12 @@ const Fabrics: React.FC = () => {
     } catch (error) {
       console.error('İplik stokları yüklenemedi:', error);
     }
-  };
+  }, []);
 
-  const fetchFabricCards = async () => {
+  const fetchFabricCards = useCallback(async () => {
     try {
       const res = await apiClient.get('/fabric-cards');
-      const cardsMap = res.data.reduce((acc: any, card: any) => {
+      const cardsMap = res.data.reduce((acc: Record<string, FabricCard>, card: FabricCard) => {
         acc[card.fabricType.toUpperCase().trim()] = card;
         return acc;
       }, {});
@@ -156,12 +184,34 @@ const Fabrics: React.FC = () => {
     } catch (err) {
       console.error('Kumaş kartelaları yüklenemedi:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchRolls();
-    fetchYarns();
-    fetchFabricCards();
+    let active = true;
+    const loadData = async () => {
+      if (active) {
+        await Promise.all([
+          fetchRolls(),
+          fetchYarns(),
+          fetchFabricCards(),
+        ]);
+      }
+    };
+    void loadData();
+    return () => {
+      active = false;
+    };
+  }, [fetchRolls, fetchYarns, fetchFabricCards]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('scan') === 'true') {
+      const timer = setTimeout(() => {
+        setOcrModalOpen(true);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const handleUploadCardImage = async (fabricType: string, file: File) => {
@@ -181,9 +231,9 @@ const Fabrics: React.FC = () => {
       
       await fetchFabricCards();
       alert('Kartela görseli başarıyla yüklendi.');
-    } catch (err: any) {
-      console.error('Görsel yüklenemedi:', err);
-      alert(err.response?.data?.message || 'Görsel yükleme başarısız.');
+    } catch (err) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      alert(errorObj.response?.data?.message || 'Görsel yükleme başarısız.');
     } finally {
       setLoading(false);
     }
@@ -238,9 +288,10 @@ const Fabrics: React.FC = () => {
       await fetchFabricCards();
       setColorModalOpen(false);
       alert('Renk tanımları başarıyla kaydedildi.');
-    } catch (err: any) {
+    } catch (err) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
       console.error('Renk tanımları kaydedilemedi:', err);
-      alert(err.response?.data?.message || 'Renk tanımları kaydedilemedi.');
+      alert(errorObj.response?.data?.message || 'Renk tanımları kaydedilemedi.');
     } finally {
       setLoading(false);
     }
@@ -355,7 +406,7 @@ const Fabrics: React.FC = () => {
         setIsCameraActive(true);
         videoRef.current.play().catch(e => console.warn('Video play error:', e));
       }
-    } catch (err: any) {
+    } catch (err) {
       console.warn('Birinci kamera denemesi başarısız, basit mod deneniyor:', err);
       try {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -364,7 +415,7 @@ const Fabrics: React.FC = () => {
           setIsCameraActive(true);
           videoRef.current.play().catch(e => console.warn('Fallback video play error:', e));
         }
-      } catch (fallbackErr: any) {
+      } catch (fallbackErr) {
         console.error('Kamera tamamen başlatılamadı:', fallbackErr);
         setCameraError('Kameraya erişilemedi. Lütfen tarayıcı/uygulama kamera izinlerinizi kontrol edin.');
       }
@@ -516,9 +567,10 @@ const Fabrics: React.FC = () => {
         rawText: data.rawText || '',
         score: currentScore,
       };
-    } catch (err: any) {
+    } catch (err) {
+      const errorObj = err as Error;
       console.error('OCR API Hatası:', err);
-      addScanLog(`Hata: ${fileName} işlenemedi. ${err.message || ''}`, 'error');
+      addScanLog(`Hata: ${fileName} işlenemedi. ${errorObj.message || ''}`, 'error');
       return null;
     }
   };
@@ -569,7 +621,7 @@ const Fabrics: React.FC = () => {
 
         if (result) {
           const newRecord = {
-            id: `record_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: generateUniqueId(),
             fabricType: result.fabricType,
             lengthM: result.lengthM,
             netWeightKg: result.netWeightKg,
@@ -580,6 +632,10 @@ const Fabrics: React.FC = () => {
           };
 
           setDetectedItems(prev => {
+            const isDuplicate = prev.some(item => Number(item.lengthM) === Number(newRecord.lengthM) && item.fabricType === newRecord.fabricType);
+            if (isDuplicate) {
+              alert(`Dikkat: Listede aynı metraja (${newRecord.lengthM} mt) sahip başka bir ${newRecord.fabricType} rulosu zaten var! (Mükerrer 2. kayıt olabilir)`);
+            }
             const updated = [...prev, newRecord];
             setDetectedData(newRecord);
             setActiveEditIndex(updated.length - 1);
@@ -619,7 +675,7 @@ const Fabrics: React.FC = () => {
         const result = await processOCR(file, file.name);
         if (result) {
           const newRecord = {
-            id: `record_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: generateUniqueId(),
             fabricType: result.fabricType,
             lengthM: result.lengthM,
             netWeightKg: result.netWeightKg,
@@ -630,6 +686,10 @@ const Fabrics: React.FC = () => {
           };
 
           setDetectedItems(prev => {
+            const isDuplicate = prev.some(item => Number(item.lengthM) === Number(newRecord.lengthM) && item.fabricType === newRecord.fabricType);
+            if (isDuplicate) {
+              alert(`Dikkat: Listede aynı metraja (${newRecord.lengthM} mt) sahip başka bir ${newRecord.fabricType} rulosu zaten var! (Mükerrer 2. kayıt olabilir)`);
+            }
             const updated = [...prev, newRecord];
             if (updated.length === 1) {
               setDetectedData(newRecord);
@@ -679,7 +739,7 @@ const Fabrics: React.FC = () => {
   };
 
   // Form verisi değiştikçe dizide ve aktif state'te güncelle
-  const handleUpdateActiveOcrField = (field: string, value: any) => {
+  const handleUpdateActiveOcrField = (field: string, value: string | number) => {
     if (activeEditIndex === null || !detectedData) return;
 
     const updatedRecord = { ...detectedData, [field]: value };
@@ -697,7 +757,7 @@ const Fabrics: React.FC = () => {
 
     const invalidItems = detectedItems.filter(item => item.lengthM <= 0 || item.netWeightKg <= 0 || !item.fabricType);
     if (invalidItems.length > 0) {
-      alert(`Listede metre, ağırlık veya kumaş adı hatalı olan ${invalidItems.length} kayıt var. Lütfen önce bunları düzeltin.`);
+      alert(`Listede metraj, ağırlık veya kumaş adı hatalı/eksik olan ${invalidItems.length} adet kayıt bulunmaktadır. Lütfen kaydetmeden önce bu kırmızı alanları düzeltin.`);
       return;
     }
 
@@ -740,19 +800,19 @@ const Fabrics: React.FC = () => {
     setLoading(false);
     if (successCount > 0) {
       addScanLog(`Toplu Kayıt Başarılı! ${successCount} top envantere eklendi. ${failCount > 0 ? `${failCount} top başarısız.` : ''}`, 'success');
-      alert(`Toplu kayıt tamamlandı. Başarılı: ${successCount}, Başarısız: ${failCount}`);
+      alert(`Toplu kayıt işlemi tamamlanmıştır. Başarılı: ${successCount} rulo, Başarısız: ${failCount} rulo.`);
       setDetectedItems([]);
       setDetectedData(null);
       setActiveEditIndex(null);
       fetchRolls();
     } else {
       addScanLog('Toplu kayıt başarısız oldu.', 'error');
-      alert('Kayıt yapılamadı. Detayları işlem günlüğünden kontrol edin.');
+      alert('Toplu stok kaydı gerçekleştirilemedi. Lütfen sağ alttaki İşlem Günlüğü detaylarını inceleyin.');
     }
   };
 
   // Group rolls by fabricType
-  const groupRolls = (rollsList: any[]): GroupedFabric[] => {
+  const groupRolls = (rollsList: (RollDetail & { fabricType?: string; color?: string })[]): GroupedFabric[] => {
     const groups: { [key: string]: GroupedFabric } = {};
 
     rollsList.forEach((roll) => {
@@ -812,19 +872,16 @@ const Fabrics: React.FC = () => {
 
   const groupedFabrics = groupRolls(rolls);
 
-  // Generate unique barcode on client side
-  const generateBarcode = () => {
-    return `BAR-KM-${Math.floor(100000 + Math.random() * 900000)}`;
-  };
+
 
   // Yeni Kumaş Girişi: Renk Ekleme
   const handleAddColorToInput = () => {
     if (!newColorName.trim()) {
-      alert('Lütfen bir renk ismi giriniz.');
+      alert('Lütfen eklemek istediğiniz renk ismini giriniz.');
       return;
     }
     if (colorsInput.some(c => c.colorName.toLowerCase() === newColorName.toLowerCase())) {
-      alert('Bu renk zaten listeye eklendi.');
+      alert('Dikkat: Bu renk zaten listenize eklenmiştir.');
       return;
     }
 
@@ -954,15 +1011,15 @@ const Fabrics: React.FC = () => {
   const handleSubmitBulk = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fabricName.trim()) {
-      alert('Lütfen kumaş adını giriniz.');
+      alert('Lütfen kumaş kartelası oluşturmak için kumaş adını giriniz.');
       return;
     }
     if (colorsInput.length === 0) {
-      alert('Lütfen en az bir renk ve top ekleyiniz.');
+      alert('Lütfen kumaş kaydı için en az bir adet renk ve rulo (top) ekleyiniz.');
       return;
     }
     if (hasRecipeInput && (!atkiYarnId || !cozguYarnId)) {
-      alert('Lütfen maliyet hesabı için Atkı ve Çözgü ipliklerini seçiniz.');
+      alert('Maliyet hesabı seçeneği açık. Lütfen Atkı ve Çözgü ipliklerini ve ağırlıklarını doldurunuz.');
       return;
     }
 
@@ -972,11 +1029,26 @@ const Fabrics: React.FC = () => {
       const notesStr = JSON.stringify(notesObj);
 
       // Collect all rolls to create
-      const rollsToCreate: any[] = [];
+      interface NewRollPayload {
+        barcodeNumber: string;
+        fabricType: string;
+        color: string;
+        widthCm: number;
+        weightGsm: number;
+        lengthM: number;
+        netWeightKg: number;
+        quality: string;
+        notes: string;
+        warpYarnId?: string;
+        weftYarnId?: string;
+        warpKg?: number;
+        weftKg?: number;
+      }
+      const rollsToCreate: NewRollPayload[] = [];
       colorsInput.forEach((colorObj) => {
         colorObj.rolls.forEach((rollObj) => {
           const grammage = calculateGrammage(rollObj.lengthM, rollObj.netWeightKg);
-          const rollPayload: any = {
+          const rollPayload: NewRollPayload = {
             barcodeNumber: generateBarcode(),
             fabricType: fabricName,
             color: colorObj.colorName,
@@ -1009,27 +1081,38 @@ const Fabrics: React.FC = () => {
       setNewColorName('');
       setHasRecipeInput(false);
       fetchRolls();
-      alert('Tüm kumaş topları başarıyla sisteme kaydedildi.');
-    } catch (err: any) {
+      alert('Kumaş kartelası ve tüm top stokları başarıyla envantere kaydedilmiştir.');
+    } catch (err) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
       console.error(err);
-      alert(err.response?.data?.message || 'Kumaş giriş hatası. Lütfen iplik stoklarınızı kontrol edin.');
+      alert(errorObj.response?.data?.message || 'Kumaş giriş hatası. Lütfen iplik stoklarınızı kontrol edin.');
     } finally {
       setLoading(false);
     }
   };
 
   // Delete Roll
-  const handleDeleteRoll = async (id: string) => {
-    if (!window.confirm('Bu kumaş topunu silmek istediğinizden emin misiniz?')) return;
-    setLoading(true);
-    try {
-      await apiClient.delete(`/rolls/${id}`);
-      fetchRolls();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Top silinemedi.');
-    } finally {
-      setLoading(false);
-    }
+  const handleDeleteRoll = (id: string) => {
+    Modal.confirm({
+      title: 'Kumaş Topunu Sil',
+      content: 'Bu kumaş topunu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.',
+      okText: 'Evet, Sil',
+      okType: 'danger',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        setLoading(true);
+        try {
+          await apiClient.delete(`/rolls/${id}`);
+          fetchRolls();
+          alert('Kumaş topu başarıyla silindi.');
+        } catch (err) {
+          const errorObj = err as { response?: { data?: { message?: string } } };
+          alert(errorObj.response?.data?.message || 'Top silinemedi.');
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
   };
 
   // Open price edit modal
@@ -1045,16 +1128,16 @@ const Fabrics: React.FC = () => {
     if (!selectedFabricForPriceEdit) return;
     setLoading(true);
     try {
-      const rollsToUpdate: any[] = [];
-      Object.values(selectedFabricForPriceEdit.colors).forEach((col: any) => {
-        col.rolls.forEach((r: any) => {
+      const rollsToUpdate: RollDetail[] = [];
+      Object.values(selectedFabricForPriceEdit.colors).forEach((col: { rolls: RollDetail[] }) => {
+        col.rolls.forEach((r: RollDetail) => {
           rollsToUpdate.push(r);
         });
       });
 
       await Promise.all(
         rollsToUpdate.map((roll) => {
-          let parsedNotes: any = {};
+          let parsedNotes: Record<string, unknown> = {};
           try {
             if (roll.notes) {
               parsedNotes = JSON.parse(roll.notes);
@@ -1087,9 +1170,9 @@ const Fabrics: React.FC = () => {
     setSelectedColorForRollAdd(colorName);
     
     // Calculate base grammage from existing rolls
-    const existingRolls: any[] = [];
-    Object.values(fabric.colors).forEach((col: any) => {
-      col.rolls.forEach((r: any) => {
+    const existingRolls: RollDetail[] = [];
+    Object.values(fabric.colors).forEach((col: { rolls: RollDetail[] }) => {
+      col.rolls.forEach((r: RollDetail) => {
         existingRolls.push(r);
       });
     });
@@ -1115,9 +1198,9 @@ const Fabrics: React.FC = () => {
     if (!selectedFabricForRollAdd) return;
 
     // Calculate base grammage
-    const existingRolls: any[] = [];
-    Object.values(selectedFabricForRollAdd.colors).forEach((col: any) => {
-      col.rolls.forEach((r: any) => {
+    const existingRolls: RollDetail[] = [];
+    Object.values(selectedFabricForRollAdd.colors).forEach((col: { rolls: RollDetail[] }) => {
+      col.rolls.forEach((r: RollDetail) => {
         existingRolls.push(r);
       });
     });
@@ -1150,7 +1233,22 @@ const Fabrics: React.FC = () => {
       const notesObj = { pricePerMeter: selectedFabricForRollAdd.pricePerMeter };
       const notesStr = JSON.stringify(notesObj);
 
-      const payload: any = {
+      interface AddRollPayload {
+        barcodeNumber: string;
+        fabricType: string;
+        color: string;
+        widthCm: number;
+        weightGsm: number;
+        lengthM: number;
+        netWeightKg: number;
+        quality: string;
+        notes: string;
+        warpYarnId?: string;
+        weftYarnId?: string;
+        warpKg?: number;
+        weftKg?: number;
+      }
+      const payload: AddRollPayload = {
         barcodeNumber: generateBarcode(),
         fabricType: selectedFabricForRollAdd.fabricType,
         color: selectedColorForRollAdd,
@@ -1174,8 +1272,9 @@ const Fabrics: React.FC = () => {
       setSingleHasRecipeInput(false);
       fetchRolls();
       alert('Kumaş topu başarıyla eklendi.');
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Top eklenirken bir hata oluştu.');
+    } catch (err) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      alert(errorObj.response?.data?.message || 'Top eklenirken bir hata oluştu.');
     } finally {
       setLoading(false);
     }
@@ -2203,86 +2302,147 @@ const Fabrics: React.FC = () => {
                       {/* Taranan Rulo Listesi */}
                       <div className="flex-1 flex flex-col min-h-0">
                         <label className="text-[10px] font-bold text-on-surface-variant block uppercase mb-1.5">Taranan Etiketler ({detectedItems.length})</label>
-                        <div className="flex-1 overflow-y-auto space-y-2 pr-1 border border-outline-variant/40 rounded p-2 bg-arka-plan-gri/10 max-h-[380px]">
-                          {detectedItems.map((item, idx) => {
-                            const isActive = activeEditIndex === idx;
-                            const isInvalid = item.lengthM <= 0 || item.netWeightKg <= 0 || !item.fabricType;
-                            
-                            return (
-                              <div 
-                                key={item.id}
-                                onClick={() => handleSelectActiveEditItem(idx)}
-                                className={`p-2.5 rounded-lg border cursor-pointer transition-all flex flex-col gap-1.5 relative ${
-                                  isActive 
-                                    ? 'bg-bilgi-mavisi/10 border-bilgi-mavisi/60 text-bilgi-mavisi font-semibold shadow-sm' 
-                                    : isInvalid
-                                    ? 'bg-hata-kirmizisi/5 border-hata-kirmizisi/35 hover:bg-hata-kirmizisi/10'
-                                    : 'bg-white border-outline-variant/30 hover:bg-surface-container-low'
-                                }`}
-                              >
-                                {/* Üst Bilgi Satırı */}
-                                <div className="flex justify-between items-start">
-                                  <div className="truncate flex-1 pr-2">
-                                    <span className="block truncate font-mono text-[9px] text-on-surface-variant/80" title={item.fileName}>
-                                      {item.fileName}
-                                    </span>
-                                    <span className="block font-bold text-xs text-on-surface truncate">
-                                      {item.fabricType || 'Kumaş Adı Yok'}
-                                    </span>
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-1 border border-outline-variant/40 rounded p-2 bg-arka-plan-gri/10 max-h-[380px]">
+                          {(() => {
+                            const renderOcrItemCard = (item: OcrRecord, idx: number) => {
+                              const isActive = activeEditIndex === idx;
+                              const isInvalid = item.lengthM <= 0 || item.netWeightKg <= 0 || !item.fabricType;
+                              
+                              const isDuplicateLength = detectedItems.some((x, i) => 
+                                i !== idx && 
+                                Number(x.lengthM) === Number(item.lengthM) && 
+                                x.fabricType === item.fabricType
+                              );
+                              
+                              return (
+                                <div 
+                                  key={item.id}
+                                  onClick={() => handleSelectActiveEditItem(idx)}
+                                  className={`p-2.5 rounded-lg border cursor-pointer transition-all flex flex-col gap-1.5 relative ${
+                                    isActive 
+                                      ? 'bg-bilgi-mavisi/10 border-bilgi-mavisi/60 text-bilgi-mavisi font-semibold shadow-sm' 
+                                      : isInvalid
+                                      ? 'bg-hata-kirmizisi/5 border-hata-kirmizisi/35 hover:bg-hata-kirmizisi/10'
+                                      : 'bg-white border-outline-variant/30 hover:bg-surface-container-low'
+                                  }`}
+                                >
+                                  {/* Üst Bilgi Satırı */}
+                                  <div className="flex justify-between items-start">
+                                    <div className="truncate flex-1 pr-2">
+                                      <span className="block truncate font-mono text-[9px] text-on-surface-variant/80" title={item.fileName}>
+                                        {item.fileName}
+                                      </span>
+                                      <span className="block font-bold text-xs text-on-surface truncate">
+                                        {item.fabricType || 'Kumaş Adı Yok'}
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-1">
+                                      {isInvalid && (
+                                        <span className="material-symbols-outlined text-sm text-hata-kirmizisi animate-pulse" title="Hatalı veya eksik bilgi!">
+                                          warning
+                                        </span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveItemFromDetectedList(idx);
+                                        }}
+                                        className="text-hata-kirmizisi hover:bg-red-50 p-0.5 rounded transition-colors"
+                                      >
+                                        <span className="material-symbols-outlined text-xs">close</span>
+                                      </button>
+                                    </div>
                                   </div>
-                                  
-                                  <div className="flex items-center gap-1">
-                                    {isInvalid && (
-                                      <span className="material-symbols-outlined text-sm text-hata-kirmizisi animate-pulse" title="Hatalı veya eksik bilgi!">
-                                        warning
+
+                                  {/* Rozetler (Badge) Satırı */}
+                                  <div className="flex flex-wrap gap-1 text-[10px]">
+                                    <span className={`px-1.5 py-0.5 rounded-md font-mono ${
+                                      item.lengthM <= 0 
+                                        ? 'bg-hata-kirmizisi/15 text-hata-kirmizisi font-bold' 
+                                        : 'bg-surface-container text-on-surface-variant'
+                                    }`}>
+                                      {item.lengthM > 0 ? `${item.lengthM} mt` : '0 mt (Eksik)'}
+                                    </span>
+
+                                    <span className={`px-1.5 py-0.5 rounded-md font-mono ${
+                                      item.netWeightKg <= 0 
+                                        ? 'bg-hata-kirmizisi/15 text-hata-kirmizisi font-bold' 
+                                        : 'bg-surface-container text-on-surface-variant'
+                                    }`}>
+                                      {item.netWeightKg > 0 ? `${item.netWeightKg} kg` : '0 kg (Eksik)'}
+                                    </span>
+
+                                    {item.colorCode && (
+                                      <span className="px-1.5 py-0.5 rounded-md bg-bilgi-mavisi/10 text-bilgi-mavisi font-medium" title={item.colorName}>
+                                        R: {item.colorCode}
                                       </span>
                                     )}
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveItemFromDetectedList(idx);
-                                      }}
-                                      className="text-hata-kirmizisi hover:bg-red-50 p-0.5 rounded transition-colors"
-                                    >
-                                      <span className="material-symbols-outlined text-xs">close</span>
-                                    </button>
                                   </div>
-                                </div>
-
-                                {/* Rozetler (Badge) Satırı */}
-                                <div className="flex flex-wrap gap-1 text-[10px]">
-                                  <span className={`px-1.5 py-0.5 rounded-md font-mono ${
-                                    item.lengthM <= 0 
-                                      ? 'bg-hata-kirmizisi/15 text-hata-kirmizisi font-bold' 
-                                      : 'bg-surface-container text-on-surface-variant'
-                                  }`}>
-                                    {item.lengthM > 0 ? `${item.lengthM} mt` : '0 mt (Eksik)'}
-                                  </span>
-
-                                  <span className={`px-1.5 py-0.5 rounded-md font-mono ${
-                                    item.netWeightKg <= 0 
-                                      ? 'bg-hata-kirmizisi/15 text-hata-kirmizisi font-bold' 
-                                      : 'bg-surface-container text-on-surface-variant'
-                                  }`}>
-                                    {item.netWeightKg > 0 ? `${item.netWeightKg} kg` : '0 kg (Eksik)'}
-                                  </span>
-
-                                  {item.colorCode && (
-                                    <span className="px-1.5 py-0.5 rounded-md bg-bilgi-mavisi/10 text-bilgi-mavisi font-medium" title={item.colorName}>
-                                      R: {item.colorCode}
-                                    </span>
+                                  
+                                  {isDuplicateLength && (
+                                    <div className="text-[9px] text-uyari-kehribar font-bold flex items-center gap-0.5 mt-1 bg-uyari-kehribar/5 p-1 rounded border border-uyari-kehribar/20">
+                                      <span className="material-symbols-outlined text-[11px]">warning</span>
+                                      Dikkat: Aynı metraja sahip başka bir rulo var!
+                                    </div>
+                                  )}
+                                  
+                                  {isInvalid && (
+                                    <div className="text-[9px] text-hata-kirmizisi font-bold">
+                                      Lütfen sol formdan değerleri düzeltin.
+                                    </div>
                                   )}
                                 </div>
-                                
-                                {isInvalid && (
-                                  <div className="text-[9px] text-hata-kirmizisi font-bold">
-                                    Lütfen sol formdan değerleri düzeltin.
+                              );
+                            };
+
+                            const existingStockItems = detectedItems.filter(item => {
+                              const targetFabricUpper = (item.fabricType || '').toUpperCase().trim();
+                              return !!fabricCardsMap[targetFabricUpper];
+                            });
+
+                            const newStockItems = detectedItems.filter(item => {
+                              const targetFabricUpper = (item.fabricType || '').toUpperCase().trim();
+                              return !fabricCardsMap[targetFabricUpper];
+                            });
+
+                            return (
+                              <div className="space-y-4">
+                                {/* Olan / Mevcut Stok Bölümü */}
+                                {existingStockItems.length > 0 && (
+                                  <div className="space-y-2">
+                                    <div className="text-[10px] font-bold text-basari-yesili uppercase tracking-wider flex items-center gap-1 bg-basari-yesili/5 p-1 rounded border border-basari-yesili/25">
+                                      <span className="material-symbols-outlined text-xs">check_circle</span>
+                                      Mevcut Stoklar ({existingStockItems.length})
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      {existingStockItems.map((item) => {
+                                        const realIdx = detectedItems.findIndex(x => x.id === item.id);
+                                        return renderOcrItemCard(item, realIdx);
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Yeni Stok Bölümü */}
+                                {newStockItems.length > 0 && (
+                                  <div className="space-y-2">
+                                    <div className="text-[10px] font-bold text-hata-kirmizisi uppercase tracking-wider flex items-center gap-1 bg-hata-kirmizisi/5 p-1 rounded border border-hata-kirmizisi/25">
+                                      <span className="material-symbols-outlined text-xs">new_releases</span>
+                                      Yeni Kumaş Türleri ({newStockItems.length})
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      {newStockItems.map((item) => {
+                                        const realIdx = detectedItems.findIndex(x => x.id === item.id);
+                                        return renderOcrItemCard(item, realIdx);
+                                      })}
+                                    </div>
                                   </div>
                                 )}
                               </div>
                             );
-                          })}
+                          })()}
                         </div>
                       </div>
 
