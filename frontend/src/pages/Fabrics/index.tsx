@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal } from 'antd';
 import apiClient from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface YarnOption {
   id: string;
@@ -62,6 +63,7 @@ const generateUniqueId = () => {
 };
 
 const Fabrics: React.FC = () => {
+  const { tenant } = useAuth();
   const [rolls, setRolls] = useState<RollDetail[]>([]);
   const [yarnStocks, setYarnStocks] = useState<YarnOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -300,14 +302,11 @@ const Fabrics: React.FC = () => {
   const getImageUrl = (url: string | null) => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    let baseUrl = apiClient.defaults.baseURL || '';
-    if (!baseUrl.startsWith('http')) {
-      const host = window.location.hostname;
-      baseUrl = `http://${host}:3001`;
-    } else {
-      baseUrl = baseUrl.replace('/api', '');
-    }
-    return baseUrl + url;
+    
+    // Proxy sunucusu (ngrok veya localhost:9000) üzerinden çalıştığımız için,
+    // statik dosyaları (public/uploads) relative path olarak yüklemek en güvenli yaklaşımdır.
+    // Bu sayede HTTPS/HTTP mixed content uyarısı oluşmaz ve mobil cihazlardan da erişilebilir olur.
+    return url;
   };
 
   // İki metin arasındaki benzerliği hesaplayan Levenshtein mesafe algoritması
@@ -457,7 +456,7 @@ const Fabrics: React.FC = () => {
     setScanLogs(prev => [{ time, text, type }, ...prev]);
   };
 
-  // Görseli Canvas kullanarak maksimum 1000px genişlik/yükseklikte ve %80 kalitede JPEG olarak sıkıştırır
+  // Görseli Canvas kullanarak maksimum 800px genişlik/yükseklikte ve %70 kalitede WebP olarak sıkıştırır
   const compressImage = (fileOrBlob: File | Blob): Promise<Blob> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -466,7 +465,7 @@ const Fabrics: React.FC = () => {
         const img = new Image();
         img.src = event.target?.result as string;
         img.onload = () => {
-          const maxDim = 1000;
+          const maxDim = 800;
           let width = img.width;
           let height = img.height;
 
@@ -499,8 +498,8 @@ const Fabrics: React.FC = () => {
                 resolve(fileOrBlob);
               }
             },
-            'image/jpeg',
-            0.80
+            'image/webp',
+            0.70
           );
         };
         img.onerror = () => resolve(fileOrBlob);
@@ -517,7 +516,7 @@ const Fabrics: React.FC = () => {
       addScanLog(`Sıkıştırıldı: ${Math.round(compressedBlob.size / 1024)} KB`, 'warning');
 
       const formData = new FormData();
-      formData.append('file', compressedBlob, fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') ? fileName : `${fileName}.jpg`);
+      formData.append('file', compressedBlob, fileName.endsWith('.webp') ? fileName : `${fileName}.webp`);
 
       const response = await apiClient.post('/rolls/ocr', formData, {
         headers: {
@@ -530,18 +529,48 @@ const Fabrics: React.FC = () => {
         throw new Error(data.error);
       }
 
-      let detectedFabric = data.fabricType || '';
+      const detectedFabric = data.fabricType || '';
+      let finalFabric = detectedFabric;
+
       if (presetFabricName) {
-        detectedFabric = presetFabricName;
+        finalFabric = presetFabricName;
         addScanLog(`Kumaş tipi ön tanımlı (${presetFabricName}) olarak kilitlendi, etiket okuması atlandı.`, 'success');
-      } else if (detectedFabric) {
-        detectedFabric = findBestFabricMatch(detectedFabric);
+      } else {
+        const expectedFabric = ocrFabricName ? ocrFabricName.trim() : '';
+        if (expectedFabric) {
+          // Girdiğimiz isim ile okunan ismi karşılaştır (Büyük/küçük harf duyarsız veya benzerlik >= 0.75)
+          const isMatch = (detectedFabric.toLowerCase() === expectedFabric.toLowerCase()) || 
+                          (getSimilarity(detectedFabric, expectedFabric) >= 0.75);
+          if (isMatch) {
+            finalFabric = expectedFabric;
+            addScanLog(`Etiketteki kumaş adı girdiğiniz ile eşleşti: ${expectedFabric}`, 'success');
+          } else {
+            // Eşleşmedi, ayarlardan eklenen listeye (fabricCardsMap) bakalım
+            const settingsMatch = findBestFabricMatch(detectedFabric);
+            const hasSettingsMatch = settingsMatch && !!fabricCardsMap[settingsMatch.toUpperCase().trim()];
+            
+            if (hasSettingsMatch) {
+              finalFabric = settingsMatch;
+              addScanLog(`Uyarı: Okunan kumaş (${detectedFabric}) girdiğiniz (${expectedFabric}) ile eşleşmedi fakat tanımlı listenizde bulunduğu için (${settingsMatch}) olarak eklendi.`, 'warning');
+            } else {
+              // Ayarlar listesinde de yoksa, uyarı ver
+              finalFabric = expectedFabric;
+              addScanLog(`UYARI: Okunan kumaş (${detectedFabric}) girdiğiniz (${expectedFabric}) ile eşleşmiyor ve tanımlı listenizde yok!`, 'error');
+              alert(`Uyarı: Okunan kumaş '${detectedFabric}', girdiğiniz '${expectedFabric}' ile eşleşmiyor ve tanımlı kumaş listenizde bulunamadı!`);
+            }
+          }
+        } else {
+          // Beklenen isim girilmemişse standart fuzzy eşleme yap
+          if (detectedFabric) {
+            finalFabric = findBestFabricMatch(detectedFabric);
+          }
+        }
       }
 
       const detectedColorNum = data.colorCode || '';
       let matchedColorName = '';
       
-      const targetFabricUpper = (detectedFabric || '').toUpperCase().trim();
+      const targetFabricUpper = (finalFabric || '').toUpperCase().trim();
       const card = fabricCardsMap[targetFabricUpper];
       if (card && card.colorMapping && card.colorMapping[detectedColorNum]) {
         matchedColorName = `Renk ${detectedColorNum} - ${card.colorMapping[detectedColorNum]}`;
@@ -555,10 +584,10 @@ const Fabrics: React.FC = () => {
       if (data.lengthM > 0) currentScore += 10;
       if (data.netWeightKg > 0) currentScore += 10;
       if (detectedColorNum) currentScore += 10;
-      if (detectedFabric && detectedFabric !== 'Bilinmeyen Kumaş') currentScore += 10;
+      if (finalFabric && finalFabric !== 'Bilinmeyen Kumaş') currentScore += 10;
 
       return {
-        fabricType: detectedFabric || ocrFabricName || 'Bilinmeyen Kumaş',
+        fabricType: finalFabric || 'Bilinmeyen Kumaş',
         lengthM: data.lengthM || 0,
         netWeightKg: data.netWeightKg || 0,
         colorCode: detectedColorNum,
@@ -844,7 +873,21 @@ const Fabrics: React.FC = () => {
         };
       }
 
-      const color = roll.color || 'Bilinmeyen';
+      const rawColor = roll.color || 'Bilinmeyen';
+      let color = rawColor;
+      const targetFabricUpper = type.toUpperCase().trim();
+      const card = fabricCardsMap[targetFabricUpper];
+      if (card && card.colorMapping) {
+        if (card.colorMapping[rawColor]) {
+          color = `Renk ${rawColor} (${card.colorMapping[rawColor]})`;
+        } else {
+          const cleanKey = rawColor.replace(/Renk\s*/i, '').trim();
+          if (card.colorMapping[cleanKey]) {
+            color = `Renk ${cleanKey} (${card.colorMapping[cleanKey]})`;
+          }
+        }
+      }
+
       if (!groups[type].colors[color]) {
         groups[type].colors[color] = { rolls: [] };
       }
@@ -1301,20 +1344,22 @@ const Fabrics: React.FC = () => {
             <span>Yeni Kumaş Girişi</span>
           </button>
           
-          <button 
-            onClick={() => {
-              setPresetFabricName(null);
-              setOcrModalOpen(true);
-              setOcrFabricName('');
-              setScanLogs([]);
-              setDetectedData(null);
-              getCameraDevices();
-            }}
-            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-bilgi-mavisi text-white rounded font-alt-baslik hover:opacity-90 transition-all shadow-sm font-semibold active:scale-95 text-sm w-full sm:w-auto"
-          >
-            <span className="material-symbols-outlined">photo_camera</span>
-            <span>Kamera ile Hızlı Giriş</span>
-          </button>
+          {tenant?.plan !== 'STARTER' && (
+            <button 
+              onClick={() => {
+                setPresetFabricName(null);
+                setOcrModalOpen(true);
+                setOcrFabricName('');
+                setScanLogs([]);
+                setDetectedData(null);
+                getCameraDevices();
+              }}
+              className="flex items-center justify-center gap-2 px-6 py-2.5 bg-bilgi-mavisi text-white rounded font-alt-baslik hover:opacity-90 transition-all shadow-sm font-semibold active:scale-95 text-sm w-full sm:w-auto"
+            >
+              <span className="material-symbols-outlined">photo_camera</span>
+              <span>Kamera ile Hızlı Giriş</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1416,10 +1461,10 @@ const Fabrics: React.FC = () => {
                             {fabricCardsMap[fabric.fabricType.toUpperCase().trim()]?.imageUrl ? (
                               <div className="relative group rounded-lg overflow-hidden border border-outline-variant w-full h-44 bg-gray-50 flex items-center justify-center">
                                 <img 
-                                  src={getImageUrl(fabricCardsMap[fabric.fabricType.toUpperCase().trim()].imageUrl)} 
+                                  src={getImageUrl(fabricCardsMap[fabric.fabricType.toUpperCase().trim()].imageUrl || null)} 
                                   alt={`${fabric.fabricType} Kartelası`} 
                                   className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-all duration-300"
-                                  onClick={() => setLightboxImage(fabricCardsMap[fabric.fabricType.toUpperCase().trim()].imageUrl)}
+                                  onClick={() => setLightboxImage(fabricCardsMap[fabric.fabricType.toUpperCase().trim()].imageUrl || null)}
                                 />
                                 <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <label className="bg-white/90 hover:bg-white p-1.5 rounded-full shadow-md cursor-pointer transition-all flex items-center justify-center">

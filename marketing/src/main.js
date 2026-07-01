@@ -15,20 +15,20 @@ const ERP_APP_URL = import.meta.env.VITE_ERP_APP_URL || 'http://localhost:5173/l
 const routes = {
   '/': renderLanding,
   '/register': renderRegister,
-  '/login': renderLogin,
+  '/contact': renderContact,
 };
 
 function router() {
   const path = window.location.pathname;
+  if (path === '/login') {
+    window.location.href = '/login';
+    return;
+  }
   const renderer = routes[path] || renderLanding;
   
-  // Clean up any event listeners from previous views
   document.getElementById('app').innerHTML = '';
-  
-  // Render current view
   renderer();
   
-  // Bind internal links
   document.querySelectorAll('a[data-link]').forEach(anchor => {
     anchor.removeEventListener('click', handleLinkClick);
     anchor.addEventListener('click', handleLinkClick);
@@ -44,7 +44,6 @@ function handleLinkClick(e) {
 
 window.addEventListener('popstate', router);
 
-// Navigation utility
 function navigateTo(path) {
   history.pushState(null, null, path);
   router();
@@ -54,7 +53,6 @@ function navigateTo(path) {
 // Navbar Component
 // ----------------------------------------------------
 function getNavbarHtml() {
-  const currentPath = window.location.pathname;
   return `
     <nav class="navbar">
       <a href="/" data-link class="logo">
@@ -62,9 +60,10 @@ function getNavbarHtml() {
         <span>FabricERP</span>
       </a>
       <div class="nav-links">
-        <a href="/" data-link>Özellikler</a>
-        <a href="/login" data-link class="btn btn-secondary">Giriş Yap</a>
-        <a href="/register" data-link class="btn btn-primary">Ücretsiz Dene</a>
+        <a href="#features">Özellikler</a>
+        <a href="#pricing">Fiyatlandırma</a>
+        <a href="/login" class="btn btn-secondary">Giriş Yap</a>
+        <a href="/register" data-link class="btn btn-accent">Kayıt Ol</a>
       </div>
     </nav>
   `;
@@ -77,74 +76,411 @@ function renderLanding() {
   const app = document.getElementById('app');
   app.innerHTML = `
     ${getNavbarHtml()}
+    
+    <!-- Hero Section -->
     <div class="hero-section">
-      <div class="hero-tag">FabricERP SaaS Çözümü v1.0</div>
-      <h1 class="hero-title">Tekstil Fabrikanız İçin Dijital Kontrol Paneli</h1>
+      <div class="hero-tag">FabricERP SaaS Çözümü v1.2</div>
+      <h1 class="hero-title">Kumaş Fabrikanız İçin Akıllı Dijital Kontrol Paneli</h1>
       <p class="hero-subtitle text-secondary">
-        Cari hesaplar, iplik ve kumaş envanterleri, siparişler, faturalar ve finansal süreçlerinizi tek bir modern platform üzerinden, güvenli ve akıllıca yönetin.
+        Cari hesap bakiyeleri, lot bazlı iplik stokları, kumaş topları, yapay zeka destekli OCR etiket okuma ve entegre finansal süreçleriniz tek bir modern SaaS platformunda.
       </p>
       <div class="hero-actions">
-        <a href="/register" data-link class="btn btn-accent btn-lg" style="font-size: 1.125rem; padding: 1rem 2rem;">
-          Hemen Kaydol & Başla
-        </a>
-        <a href="/login" data-link class="btn btn-secondary btn-lg" style="font-size: 1.125rem; padding: 1rem 2rem;">
-          Yönetici Girişi
-        </a>
+        <a href="/register" data-link class="btn btn-accent btn-lg">Ücretsiz Denemeye Başla</a>
+        <a href="#features" class="btn btn-secondary btn-lg">Özellikleri Keşfet</a>
       </div>
-      
-      <div class="features-grid">
-        <div class="glass-card feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">group</span>
+    </div>
+
+    <!-- Browser Mockup (Demo Area) -->
+    <div class="mockup-container max-width-container">
+      <div class="browser-mockup glass-card">
+        <div class="browser-header">
+          <div class="dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
           </div>
-          <h3>Cari Hesap Yönetimi</h3>
-          <p>Müşteri ve tedarikçilerinizi borç/alacak takipleriyle birlikte kurumsal düzeyde yönetin.</p>
+          <div class="address-bar">https://app.fabricerp.com/dashboard</div>
         </div>
-        <div class="glass-card feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">inventory_2</span>
-          </div>
-          <h3>İplik Envanteri</h3>
-          <p>Lot numaraları, kg miktarları, tedarikçileri ve birim fiyatları detaylarıyla iplik stoklarını izleyin.</p>
-        </div>
-        <div class="glass-card feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">layers</span>
-          </div>
-          <h3>Kumaş Topları</h3>
-          <p>Üretim reçeteleriyle otomatik maliyet hesabı yapılmış, barkodlu kumaş toplarını yönetin.</p>
-        </div>
-        <div class="glass-card feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">shopping_cart</span>
-          </div>
-          <h3>Sipariş Takibi</h3>
-          <p>Envanterdeki kumaşları rezerve ederek siparişleri onaylayın, iptal edin veya sevk edin.</p>
-        </div>
-        <div class="glass-card feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">receipt_long</span>
-          </div>
-          <h3>Faturalandırma</h3>
-          <p>Siparişlerden otomatik fatura oluşturun ve vergi dairesi/no entegrasyonuyla resmi dökümler alın.</p>
-        </div>
-        <div class="glass-card feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">account_balance_wallet</span>
-          </div>
-          <h3>Finans (Çek/Senet)</h3>
-          <p>Kasa, banka, çek ve senet hareketlerinizi tahsil, ödeme ve ciro durumlarıyla kontrol edin.</p>
-        </div>
-        <div class="glass-card feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">photo_camera</span>
-          </div>
-          <h3>Yapay Zeka Destekli OCR Tarama</h3>
-          <p>Kumaş toplarının etiketlerini kameranızla veya galeri resimleriyle taratıp saniyeler içinde akıllı stok girişi yapın.</p>
+        <div class="mockup-app-layout">
+          <aside class="mockup-sidebar">
+            <div class="sidebar-logo"><span class="material-symbols-outlined text-accent">layers</span> FabricERP</div>
+            <div class="sidebar-item active"><span class="material-symbols-outlined text-sm">dashboard</span> Panel</div>
+            <div class="sidebar-item"><span class="material-symbols-outlined text-sm">group</span> Cari Hesaplar</div>
+            <div class="sidebar-item"><span class="material-symbols-outlined text-sm">inventory_2</span> İplik Envanteri</div>
+            <div class="sidebar-item"><span class="material-symbols-outlined text-sm">view_in_ar</span> Kumaş Topları</div>
+            <div class="sidebar-item"><span class="material-symbols-outlined text-sm">shopping_cart</span> Siparişler</div>
+            <div class="sidebar-item"><span class="material-symbols-outlined text-sm">payments</span> Finans & Ödeme</div>
+          </aside>
+          <main class="mockup-main">
+            <div class="mockup-title-bar">
+              <h2>Kontrol Paneli</h2>
+              <span class="mockup-user-badge">Global Tekstil A.Ş.</span>
+            </div>
+            <div class="mockup-stats-grid">
+              <div class="mockup-stat-card border-blue">
+                <span class="label">Müşteri Alacakları</span>
+                <span class="value text-error">$124,500</span>
+                <span class="subtext">Canlı Kur Çevrimli</span>
+              </div>
+              <div class="mockup-stat-card border-green">
+                <span class="label">Toplam Kumaş Stok</span>
+                <span class="value text-success">1,420 Top</span>
+                <span class="subtext">OCR Girişli</span>
+              </div>
+              <div class="mockup-stat-card border-purple">
+                <span class="label">Aktif Siparişler</span>
+                <span class="value">42 Adet</span>
+                <span class="subtext">Müşteri Rezerve</span>
+              </div>
+            </div>
+            <div class="mockup-table-card">
+              <h3>Son Kumaş Girişleri (AI OCR Destekli)</h3>
+              <div class="mockup-table-row header">
+                <span>Top No</span>
+                <span>Kumaş Tipi</span>
+                <span>Renk</span>
+                <span>Metraj</span>
+                <span>Durum</span>
+              </div>
+              <div class="mockup-table-row">
+                <span class="font-mono text-accent">TOP-KM-938210</span>
+                <strong>RONA</strong>
+                <span>Renk 1 (Siyah)</span>
+                <strong>104.2 mt</strong>
+                <span class="badge badge-success">Mevcut</span>
+              </div>
+              <div class="mockup-table-row">
+                <span class="font-mono text-accent">TOP-KM-427189</span>
+                <strong>CROC</strong>
+                <span>Renk 3 (Lacivert)</span>
+                <strong>88.5 mt</strong>
+                <span class="badge badge-success">Mevcut</span>
+              </div>
+            </div>
+          </main>
         </div>
       </div>
     </div>
+
+    <!-- Core Features Grid -->
+    <div id="features" class="section-title-container max-width-container">
+      <h2 class="section-title">Temel Özellikler</h2>
+      <p class="section-subtitle">FabricERP, tekstil üreticilerinin tüm iş akışlarını tek bir çatı altında toplar.</p>
+    </div>
+    
+    <div class="features-grid max-width-container">
+      <div class="glass-card feature-card">
+        <div class="feature-icon"><span class="material-symbols-outlined">group</span></div>
+        <h3>Cari Hesap Yönetimi</h3>
+        <p>Müşteri ve tedarikçilerinizi borç/alacak takipleriyle birlikte kurumsal düzeyde yönetin.</p>
+      </div>
+      <div class="glass-card feature-card">
+        <div class="feature-icon"><span class="material-symbols-outlined">inventory_2</span></div>
+        <h3>İplik Envanteri</h3>
+        <p>Lot numaraları, kg miktarları, tedarikçileri ve birim fiyatları detaylarıyla iplik stoklarını izleyin.</p>
+      </div>
+      <div class="glass-card feature-card">
+        <div class="feature-icon"><span class="material-symbols-outlined">layers</span></div>
+        <h3>Kumaş Topları</h3>
+        <p>Üretim reçeteleriyle otomatik maliyet hesabı yapılmış kumaş toplarını yönetin.</p>
+      </div>
+      <div class="glass-card feature-card">
+        <div class="feature-icon"><span class="material-symbols-outlined">shopping_cart</span></div>
+        <h3>Sipariş Takibi</h3>
+        <p>Envanterdeki kumaşları rezerve ederek siparişleri onaylayın, iptal edin veya sevk edin.</p>
+      </div>
+      <div class="glass-card feature-card">
+        <div class="feature-icon"><span class="material-symbols-outlined">receipt_long</span></div>
+        <h3>Faturalandırma</h3>
+        <p>Siparişlerden otomatik fatura oluşturun ve vergi dairesi/no entegrasyonuyla resmi dökümler alın.</p>
+      </div>
+      <div class="glass-card feature-card">
+        <div class="feature-icon"><span class="material-symbols-outlined">account_balance_wallet</span></div>
+        <h3>Finans (Çek/Senet)</h3>
+        <p>Kasa, banka, çek ve senet hareketlerinizi tahsil, ödeme ve ciro durumlarıyla kontrol edin.</p>
+      </div>
+    </div>
+
+    <!-- Interactive Tabs Section -->
+    <div class="interactive-tabs-section max-width-container">
+      <div class="tabs-header">
+        <button class="tab-btn active" data-tab="ocr">Yapay Zeka OCR</button>
+        <button class="tab-btn" data-tab="multicurrency">Çoklu Para Birimi</button>
+        <button class="tab-btn" data-tab="barcode">Reçete & Maliyet</button>
+      </div>
+      <div class="tab-content glass-card">
+        <div class="tab-text-side">
+          <h3 id="tab-content-title">Yapay Zeka Destekli OCR Etiket Okuma</h3>
+          <p id="tab-content-text" class="text-secondary">
+            Akıllı telefon kameranızdan veya galerinizden yüklediğiniz kumaş etiket fotoğraflarını saniyeler içinde analiz edin. Gemini entegrasyonu sayesinde kumaş adı, metre, kg ve renk kodu otomatik olarak çıkarılır ve hata payı en aza iner.
+          </p>
+        </div>
+        <div class="tab-image-side">
+          <img id="tab-content-image" src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80" alt="Fabric OCR Scanner" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Currency Rate Widget (Interactive) -->
+    <div class="live-rates-section max-width-container">
+      <div class="rates-intro">
+        <h2>Canlı Kurlarla Otomatik Hesaplama</h2>
+        <p class="text-secondary">
+          Cari hesaplarınızda hangi para birimini kullanırsanız kullanın, sistemimiz canlı döviz kurları ile ödemelerinizi otomatik olarak çevirir ve bakiye hesabını günceller.
+        </p>
+      </div>
+      <div class="rates-calculator-card glass-card">
+        <div class="rates-grid-mini">
+          <div class="rate-badge">
+            <span class="currency">USD / TRY</span>
+            <span id="rate-usd-try" class="rate-val">34.02</span>
+          </div>
+          <div class="rate-badge">
+            <span class="currency">EUR / TRY</span>
+            <span id="rate-eur-try" class="rate-val">37.05</span>
+          </div>
+        </div>
+        <div class="calculator-form">
+          <h4>Hızlı Döviz Çevirici</h4>
+          <div class="calc-inputs-row">
+            <input type="number" id="calc-amount" placeholder="Tutar girin" value="1000" />
+            <select id="calc-from">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="TRY">TRY</option>
+            </select>
+            <span class="arrow">&rarr;</span>
+            <select id="calc-to">
+              <option value="TRY">TRY</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </div>
+          <div class="calc-result-row">
+            <span>Dönüştürülen Tutar:</span>
+            <strong id="calc-result" class="text-accent">34.020,00 TRY</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing Section -->
+    <div id="pricing" class="section-title-container max-width-container">
+      <h2 class="section-title">Esnek Fiyatlandırma Planları</h2>
+      <p class="section-subtitle">Fabrikanızın büyüklüğüne en uygun paketi seçin, dilediğiniz zaman yükseltin.</p>
+    </div>
+
+    <div class="pricing-grid max-width-container">
+      <div class="pricing-card glass-card">
+        <h3>Atölye (Başlangıç)</h3>
+        <div class="price">₺1.499 <span class="period">/ ay</span></div>
+        <p class="desc">Küçük ölçekli tekstil atölyeleri için ideal.</p>
+        <ul class="pricing-features">
+          <li><span class="material-symbols-outlined icon text-success">check</span> 100 Top Kumaş Limiti</li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> 1 Kullanıcı Erişimi</li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> Standart Envanter Takibi</li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> E-posta Desteği</li>
+        </ul>
+        <a href="/register" data-link class="btn btn-secondary w-full">Başlangıç Yap</a>
+      </div>
+      
+      <div class="pricing-card glass-card popular">
+        <div class="popular-badge">En Çok Tercih Edilen</div>
+        <h3>Fabrika (Profesyonel)</h3>
+        <div class="price">₺3.499 <span class="period">/ ay</span></div>
+        <p class="desc">Orta ve büyük ölçekli entegre tekstil işletmeleri için.</p>
+        <ul class="pricing-features">
+          <li><span class="material-symbols-outlined icon text-success">check</span> <strong>Sınırsız Kumaş Topu</strong></li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> Sınırsız Kullanıcı Tanımlama</li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> <strong>Gemini Yapay Zeka OCR</strong></li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> Çoklu Para Birimli Cari Hesap</li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> Reçeteli İplik Maliyet Hesabı</li>
+        </ul>
+        <a href="/register" data-link class="btn btn-accent w-full">Ücretsiz Denemeyi Başlat</a>
+      </div>
+
+      <div class="pricing-card glass-card">
+        <h3>Kurumsal (Enterprise)</h3>
+        <div class="price">Özel Fiyat</div>
+        <p class="desc">Büyük markalar ve çoklu üretim tesisleri için.</p>
+        <ul class="pricing-features">
+          <li><span class="material-symbols-outlined icon text-success">check</span> Özel Bulut/Sunucu Kurulumu</li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> Şirket İçi (On-Premise) Destek</li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> Gelişmiş API Entegrasyonları</li>
+          <li><span class="material-symbols-outlined icon text-success">check</span> 7/24 Kesintisiz VIP Destek</li>
+        </ul>
+        <a href="/contact" data-link class="btn btn-secondary w-full">Bizimle İletişime Geçin</a>
+      </div>
+    </div>
+
+    <!-- FAQ Section (Accordion) -->
+    <div class="faq-section max-width-container">
+      <h2 class="section-title text-center">Sıkça Sorulan Sorular</h2>
+      
+      <div class="faq-accordion">
+        <div class="faq-item glass-card active">
+          <div class="faq-header">
+            <h4>Yapay Zeka Destekli OCR nasıl çalışır?</h4>
+            <span class="material-symbols-outlined toggle-icon">expand_more</span>
+          </div>
+          <div class="faq-body">
+            <p>Akıllı telefon kameranızla veya sisteme yükleyeceğiniz etiket görselleriyle tarama yapabilirsiniz. Gemini yapay zeka modülü, etiket üzerindeki metinleri analiz ederek kumaş türünü, net metrajını, kilogram ağırlığını ve lot kodunu otomatik olarak ayrıştırıp sisteme kaydeder.</p>
+          </div>
+        </div>
+
+        <div class="faq-item glass-card">
+          <div class="faq-header">
+            <h4>Çoklu para birimli bakiye hesaplaması nasıl çalışıyor?</h4>
+            <span class="material-symbols-outlined toggle-icon">expand_more</span>
+          </div>
+          <div class="faq-body">
+            <p>Her cari hesabın (müşteri veya tedarikçi) varsayılan bir para birimi (TRY, USD, EUR) bulunur. Farklı para birimleriyle ödeme alındığında sistem o günkü canlı döviz kurunu çeker ve ödemeyi otomatik olarak carinin varsayılan para birimine çevirerek borcundan düşer.</p>
+          </div>
+        </div>
+
+        <div class="faq-item glass-card">
+          <div class="faq-header">
+            <h4>Davetiye kodu nedir ve nereden alabilirim?</h4>
+            <span class="material-symbols-outlined toggle-icon">expand_more</span>
+          </div>
+          <div class="faq-body">
+            <p>Sistemimiz SaaS altyapısına sahiptir. Kayıt olurken geçerli bir davetiye kodu girilmesi istenir. Eğer bir davetiye kodunuz yoksa, kayıt sayfasındaki "Davet Talebi Gönder" butonuna basarak e-posta adresinizle yönetici ekibimize talep iletebilirsiniz.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Call to Action Banner -->
+    <div class="cta-banner max-width-container glass-card">
+      <h2>Tekstil Üretiminizde Dijital Dönüşümü Başlatın</h2>
+      <p>Hemen kaydolun ve 14 gün boyunca tüm özellikleri ücretsiz deneyimleyin.</p>
+      <a href="/register" data-link class="btn btn-accent btn-lg">Ücretsiz Denemeye Başla</a>
+    </div>
+
+    <!-- Footer Component -->
+    <footer class="footer max-width-container">
+      <div class="footer-bottom">
+        <span class="footer-logo"><span class="material-symbols-outlined text-accent">layers</span> FabricERP</span>
+        <p>&copy; 2026 FabricERP. Tüm Hakları Saklıdır.</p>
+      </div>
+    </footer>
   `;
+
+  // Bind Interactive Tab events
+  const tabs = document.querySelectorAll('.tab-btn');
+  const contentTitle = document.getElementById('tab-content-title');
+  const contentText = document.getElementById('tab-content-text');
+  const contentImage = document.getElementById('tab-content-image');
+  
+  const tabData = {
+    ocr: {
+      title: 'Yapay Zeka Destekli OCR Etiket Okuma',
+      text: 'Akıllı telefon kameranızdan veya galerinizden yüklediğiniz kumaş etiket fotoğraflarını saniyeler içinde analiz edin. Gemini entegrasyonu sayesinde kumaş adı, metre, kg ve renk kodu otomatik olarak çıkarılır ve hata payı en aza iner.',
+      img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80'
+    },
+    multicurrency: {
+      title: 'Çoklu Para Birimli Cari Bakiye Yönetimi',
+      text: 'Müşteri ve tedarikçilerinizin bakiyelerini TRY, USD veya EUR cinsinden yönetin. Farklı para birimlerinde aldığınız ödemeleri canlı kurlar ile anında cari para birimine çevirerek borçtan düşün.',
+      img: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=600&q=80'
+    },
+    barcode: {
+      title: 'Gelişmiş Reçete & Envanter Yönetimi',
+      text: 'İplik lot numaraları ve reçete ağırlık tanımları ile kumaşın atkı/çözgü iplik maliyetlerini otomatik hesaplayıp kârlılığınızı anlık takip edin.',
+      img: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=600&q=80'
+    }
+  };
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const target = tab.getAttribute('data-tab');
+      if (tabData[target]) {
+        contentTitle.innerText = tabData[target].title;
+        contentText.innerText = tabData[target].text;
+        contentImage.src = tabData[target].img;
+      }
+    });
+  });
+
+  // Bind FAQ Accordion events
+  const faqItems = document.querySelectorAll('.faq-item');
+  faqItems.forEach(item => {
+    const header = item.querySelector('.faq-header');
+    header.addEventListener('click', () => {
+      const isActive = item.classList.contains('active');
+      faqItems.forEach(i => i.classList.remove('active'));
+      if (!isActive) {
+        item.classList.add('active');
+      }
+    });
+  });
+
+  // Bind Live Exchange Rate Widget Calculator
+  const calcInput = document.getElementById('calc-amount');
+  const calcFrom = document.getElementById('calc-from');
+  const calcTo = document.getElementById('calc-to');
+  const calcResult = document.getElementById('calc-result');
+  const rateUsdTry = document.getElementById('rate-usd-try');
+  const rateEurTry = document.getElementById('rate-eur-try');
+
+  let exchangeRates = { TRY: 34.02, EUR: 0.92 };
+
+  // Fetch live rates
+  fetch('https://open.er-api.com/v6/latest/USD')
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.rates) {
+        exchangeRates.TRY = data.rates.TRY || 34.02;
+        exchangeRates.EUR = data.rates.EUR || 0.92;
+        
+        if (rateUsdTry) rateUsdTry.innerText = exchangeRates.TRY.toFixed(2);
+        if (rateEurTry) {
+          const eurToTry = exchangeRates.TRY / exchangeRates.EUR;
+          rateEurTry.innerText = eurToTry.toFixed(2);
+        }
+        
+        updateCalculator();
+      }
+    })
+    .catch(err => console.log('Calculator exchange rates fetch failed:', err));
+
+  function updateCalculator() {
+    if (!calcInput || !calcFrom || !calcTo || !calcResult) return;
+    
+    const amt = parseFloat(calcInput.value) || 0;
+    const fromCur = calcFrom.value;
+    const toCur = calcTo.value;
+
+    if (fromCur === toCur) {
+      calcResult.innerText = `${amt.toFixed(2)} ${toCur}`;
+      return;
+    }
+
+    // Convert from source to USD base
+    let usdAmount = amt;
+    if (fromCur === 'TRY') {
+      usdAmount = amt / exchangeRates.TRY;
+    } else if (fromCur === 'EUR') {
+      usdAmount = amt / (exchangeRates.TRY / exchangeRates.EUR); // EUR/USD rates is 1/USD/EUR
+      usdAmount = amt * (exchangeRates.EUR);
+    }
+
+    // Convert from USD base to target
+    let targetAmount = usdAmount;
+    if (toCur === 'TRY') {
+      targetAmount = usdAmount * exchangeRates.TRY;
+    } else if (toCur === 'EUR') {
+      targetAmount = usdAmount * (exchangeRates.TRY / exchangeRates.EUR);
+      targetAmount = usdAmount / (exchangeRates.EUR);
+    }
+
+    calcResult.innerText = `${targetAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${toCur}`;
+  }
+
+  [calcInput, calcFrom, calcTo].forEach(el => {
+    if (el) el.addEventListener('input', updateCalculator);
+  });
 }
 
 // ----------------------------------------------------
@@ -417,6 +753,47 @@ function renderLogin() {
       `;
     }
   });
+}
+
+// ----------------------------------------------------
+// Contact View
+// ----------------------------------------------------
+function renderContact() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${getNavbarHtml()}
+    <div class="form-container">
+      <div class="glass-card auth-card text-center" style="max-width: 550px; padding: 3rem;">
+        <div class="auth-header" style="margin-bottom: 2rem;">
+          <span class="material-symbols-outlined text-accent" style="font-size: 3.5rem; margin-bottom: 1rem;">contact_support</span>
+          <h2>Bizimle İletişime Geçin</h2>
+          <p>FabricERP Enterprise çözümleri veya her türlü sorunuz için bizimle doğrudan iletişime geçebilirsiniz.</p>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 1.5rem; text-align: left; margin-top: 1.5rem; border-top: 1px solid var(--surface-border); padding-top: 2rem;">
+          <div style="display: flex; align-items: center; gap: 1.25rem; background: rgba(255,255,255,0.02); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--surface-border);">
+            <span class="material-symbols-outlined text-accent" style="font-size: 2.25rem;">mail</span>
+            <div>
+              <strong style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.2rem;">E-posta Adresi</strong>
+              <a href="mailto:oguzzakg@gmail.com" style="color: white; font-size: 1.15rem; text-decoration: none; font-weight: 600; transition: color 0.2s;" onmouseover="this.style.color='#52b788'" onmouseout="this.style.color='white'">oguzzakg@gmail.com</a>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 1.25rem; background: rgba(255,255,255,0.02); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--surface-border);">
+            <span class="material-symbols-outlined text-accent" style="font-size: 2.25rem;">phone_iphone</span>
+            <div>
+              <strong style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.2rem;">Telefon Numarası</strong>
+              <a href="tel:05519406834" style="color: white; font-size: 1.15rem; text-decoration: none; font-weight: 600; transition: color 0.2s;" onmouseover="this.style.color='#52b788'" onmouseout="this.style.color='white'">0551 940 68 34</a>
+            </div>
+          </div>
+        </div>
+        
+        <div style="margin-top: 2.5rem;">
+          <a href="/" data-link class="btn btn-secondary" style="width: 100%; padding: 0.85rem;">Anasayfaya Dön</a>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // Initial Routing

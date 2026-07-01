@@ -80,7 +80,7 @@ const YarnStocks: React.FC = () => {
         criticalCount: Number(statsRes.data.criticalCount || 0),
       });
 
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
@@ -95,7 +95,7 @@ const YarnStocks: React.FC = () => {
         (acc: Account) => acc.type === 'SUPPLIER' || acc.type === 'BOTH'
       );
       setSuppliers(filtered);
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
     } finally {
       setLoadingSuppliers(false);
@@ -103,7 +103,16 @@ const YarnStocks: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchYarnStocks();
+    let active = true;
+    const fetchData = async () => {
+      if (active) {
+        await fetchYarnStocks();
+      }
+    };
+    void fetchData();
+    return () => {
+      active = false;
+    };
   }, [fetchYarnStocks]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,8 +176,9 @@ const YarnStocks: React.FC = () => {
       });
       setYarnModalOpen(false);
       fetchYarnStocks();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'İplik girişi sırasında bir hata oluştu.');
+    } catch (err: unknown) {
+      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(errorMsg || 'İplik girişi sırasında bir hata oluştu.');
     }
   };
 

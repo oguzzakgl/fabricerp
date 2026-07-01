@@ -8,23 +8,30 @@ const TenantDetail: React.FC = () => {
   const navigate = useNavigate();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Modals
   const [pwdModal, setPwdModal] = useState<TenantUser | null>(null);
   const [emailModal, setEmailModal] = useState<TenantUser | null>(null);
   const [addModal, setAddModal] = useState(false);
-
   const [newPwd, setNewPwd] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [addForm, setAddForm] = useState({ name: '', email: '', password: '', role: 'ADMIN' });
   const [submitting, setSubmitting] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [savingApi, setSavingApi] = useState(false);
+
+  const [prevId, setPrevId] = useState(id);
+  if (id !== prevId) {
+    setPrevId(id);
+    setLoading(true);
+  }
 
   const load = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
     try {
       const res = await superAdminApi.getTenant(id);
       setTenant(res.data);
+      setApiKey(res.data?.geminiApiKey || '');
+      setPrompt(res.data?.geminiPrompt || '');
     } catch (e) {
       console.error(e);
     } finally {
@@ -33,11 +40,28 @@ const TenantDetail: React.FC = () => {
   }, [id]);
 
   useEffect(() => {
+    let active = true;
     const fetchData = async () => {
-      await load();
+      if (active) {
+        await load();
+      }
     };
     void fetchData();
+    return () => {
+      active = false;
+    };
   }, [load]);
+
+  const handleSaveApiKey = async () => {
+    if (!id) return;
+    setSavingApi(true);
+    try {
+      await superAdminApi.updateTenantSettings(id, { geminiApiKey: apiKey, geminiPrompt: prompt });
+      alert('Ayarlar kaydedildi.');
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Hata.');
+    } finally { setSavingApi(false); }
+  };
 
   const handleChangePwd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +140,7 @@ const TenantDetail: React.FC = () => {
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sol: Firma Bilgileri */}
+        {/* Sol: Firma Bilgileri + API Ayarları */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-2xl border border-outline-variant shadow-xs p-6 space-y-4">
             <div className="flex items-center gap-3">
@@ -151,6 +175,45 @@ const TenantDetail: React.FC = () => {
                   <p className="text-sm text-on-surface">{new Date(tenant.createdAt).toLocaleDateString('tr-TR')}</p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* API Ayarları */}
+          <div className="bg-white rounded-2xl border border-outline-variant shadow-xs p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-secondary text-base">psychology</span>
+              <h4 className="font-bold text-sm text-on-surface">API Ayarları</h4>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-on-surface-variant uppercase block">Gemini API Key</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder="AIzaSyD-..."
+                  className="w-full px-3 py-2 bg-arka-plan-gri border border-outline-variant rounded text-sm font-mono outline-none focus:ring-1 focus:ring-bilgi-mavisi"
+                />
+                <p className="text-[10px] text-on-surface-variant">OCR özelliği için Google Gemini API anahtarı</p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-on-surface-variant uppercase block">Özel OCR Promptu (Talimatı)</label>
+                <textarea
+                  value={prompt}
+                  onChange={e => setPrompt(e.target.value)}
+                  placeholder={`ŞABLON:\n- fabricType (Kumaş Türü): [Asıl kumaş cinsini bul]\n- colorCode (Renk Kodu): [1-13 arası tam sayı]\n- lengthM (Metre / Uzunluk): [Uzunluk değeri]\n- netWeightKg (Net Ağırlık / Kg): [Net ağırlık değeri]\n- quality (Kalite Sınıfı): [Genellikle 1]\n- barcodeNumber (Barkod / Top No): [Barkod veya Top No]\n\nÖrn: 1. fabricType: 'KUMAŞ ADI' yerine 'KALİTE' başlığının yanındakini oku...`}
+                  rows={10}
+                  className="w-full px-3 py-2 bg-arka-plan-gri border border-outline-variant rounded text-sm outline-none focus:ring-1 focus:ring-bilgi-mavisi resize-y"
+                />
+                <p className="text-[10px] text-on-surface-variant">Müşterinin etiketlerine özel OCR promptunu buradan düzenleyebilirsiniz. Boş bırakılırsa varsayılan prompt kullanılır.</p>
+              </div>
+              <button
+                onClick={handleSaveApiKey}
+                disabled={savingApi}
+                className="w-full bg-secondary text-on-secondary py-2 rounded-lg text-xs font-bold hover:brightness-105 transition-all disabled:opacity-50"
+              >
+                {savingApi ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
+              </button>
             </div>
           </div>
         </div>

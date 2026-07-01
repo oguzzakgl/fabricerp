@@ -33,4 +33,9 @@ export class UpdateAccountDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['TRY', 'USD', 'EUR'])
+  currency?: string;
 }

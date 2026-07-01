@@ -3,6 +3,46 @@ import { createRoot } from 'react-dom/client'
 import { notification } from 'antd'
 import './index.css'
 import App from './App.tsx'
+import * as Sentry from '@sentry/react'
+
+const sentryDsn = import.meta.env.VITE_SENTRY_FRONTEND_DSN;
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    integrations: [
+      Sentry.browserTracingIntegration(),
+      Sentry.replayIntegration(),
+    ],
+    tracesSampleRate: 1.0,
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+  });
+}
+
+const clarityId = import.meta.env.VITE_CLARITY_ID;
+if (clarityId) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const win = window as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  win.clarity = win.clarity || function(...args: any[]) {
+    (win.clarity.q = win.clarity.q || []).push(args);
+  };
+  const script = document.createElement('script');
+  script.async = true;
+  script.src = `https://www.clarity.ms/tag/${clarityId}`;
+  const firstScript = document.getElementsByTagName('script')[0];
+  if (firstScript && firstScript.parentNode) {
+    firstScript.parentNode.insertBefore(script, firstScript);
+  }
+}
+
+// Initialize theme immediately on page load to prevent flash of light mode
+const savedTheme = localStorage.getItem('theme') || 'light';
+if (savedTheme === 'dark') {
+  document.documentElement.classList.add('dark');
+} else {
+  document.documentElement.classList.remove('dark');
+}
 
 // Tarayıcı alert kutularını modern sol-alt bildirimlerle değiştir (monkey patching)
 window.alert = (message: string) => {

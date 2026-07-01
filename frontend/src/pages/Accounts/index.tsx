@@ -16,6 +16,12 @@ interface Account {
   email?: string;
   address?: string;
   createdAt: string;
+  currency?: string;
+  balanceTRY?: number;
+  balanceUSD?: number;
+  balanceEUR?: number;
+  balanceInDefault?: number;
+  defaultCurrency?: string;
 }
 
 const Accounts: React.FC = () => {
@@ -47,6 +53,7 @@ const Accounts: React.FC = () => {
     phone: '',
     email: '',
     address: '',
+    currency: 'TRY',
   });
 
   // Detail View states
@@ -63,6 +70,161 @@ const Accounts: React.FC = () => {
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [selectedReturnOrder, setSelectedReturnOrder] = useState<any | null>(null);
   const [selectedReturnRollIds, setSelectedReturnRollIds] = useState<string[]>([]);
+
+  // Sipariş detayı görüntüleme state'leri
+  const [orderDetailsModalOpen, setOrderDetailsModalOpen] = useState(false);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<any | null>(null);
+
+  const handleShowOrderDetails = (order: any) => {
+    setSelectedOrderDetails(order);
+    setOrderDetailsModalOpen(true);
+  };
+
+  // Ödeme Modali State ve Yardımcı Fonksiyonları
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPaymentAccount, setSelectedPaymentAccount] = useState<Account | null>(null);
+  const [liveRates, setLiveRates] = useState<{ [key: string]: number }>({ TRY: 34.0, EUR: 0.92, USD: 1.0 });
+  const [ratesLoading, setRatesLoading] = useState(true);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    currency: 'TRY',
+    exchangeRate: '1.00',
+    convertedAmount: '0.00',
+    type: 'CASH',
+    bankName: '',
+    referenceNumber: '',
+    notes: '',
+  });
+
+  // Canlı Döviz Kurlarını Çek
+  useEffect(() => {
+    fetch('https://open.er-api.com/v6/latest/USD')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.rates) {
+          setLiveRates({
+            TRY: data.rates.TRY || 34.0,
+            EUR: data.rates.EUR || 0.92,
+            USD: 1.0,
+          });
+        }
+      })
+      .catch((err) => {
+        console.error('Kurlar canlı çekilemedi:', err);
+      })
+      .finally(() => {
+        setRatesLoading(false);
+      });
+  }, []);
+
+  const calculateConversion = (amt: number, payCur: string, accCur: string, rateInput?: number) => {
+    if (payCur === accCur) {
+      return { rate: 1.0, converted: amt };
+    }
+
+    const usdToTry = liveRates.TRY || 34.0;
+    const usdToEur = liveRates.EUR || 0.92;
+    const eurToTry = usdToTry / usdToEur;
+
+    let rate = 1.0;
+    let converted = amt;
+
+    if (payCur === 'TRY' && accCur === 'USD') {
+      rate = rateInput ?? usdToTry;
+      converted = rate !== 0 ? amt / rate : 0;
+    } else if (payCur === 'TRY' && accCur === 'EUR') {
+      rate = rateInput ?? eurToTry;
+      converted = rate !== 0 ? amt / rate : 0;
+    } else if (payCur === 'USD' && accCur === 'TRY') {
+      rate = rateInput ?? usdToTry;
+      converted = amt * rate;
+    } else if (payCur === 'EUR' && accCur === 'TRY') {
+      rate = rateInput ?? eurToTry;
+      converted = amt * rate;
+    } else if (payCur === 'EUR' && accCur === 'USD') {
+      const eurToUsd = 1 / usdToEur;
+      rate = rateInput ?? eurToUsd;
+      converted = amt * rate;
+    } else if (payCur === 'USD' && accCur === 'EUR') {
+      const eurToUsd = 1 / usdToEur;
+      rate = rateInput ?? eurToUsd;
+      converted = rate !== 0 ? amt / rate : 0;
+    }
+
+    return { rate, converted };
+  };
+
+  const handleOpenPaymentModal = (account: Account) => {
+    setSelectedPaymentAccount(account);
+    const accCurrency = account.currency || 'TRY';
+    const { rate } = calculateConversion(0, 'TRY', accCurrency);
+
+    setPaymentForm({
+      amount: '',
+      currency: 'TRY',
+      exchangeRate: String(rate.toFixed(4)),
+      convertedAmount: '0.00',
+      type: 'CASH',
+      bankName: '',
+      referenceNumber: '',
+      notes: '',
+    });
+    setPaymentModalOpen(true);
+  };
+
+  const handlePaymentFormChange = (field: string, value: any) => {
+    setPaymentForm((prev) => {
+      const updated = { ...prev, [field]: value };
+      
+      const amt = Number(updated.amount) || 0;
+      const payCur = updated.currency;
+      const accCur = selectedPaymentAccount?.currency || 'TRY';
+      
+      let rateInput: number | undefined = undefined;
+      if (field === 'exchangeRate') {
+        rateInput = Number(value);
+      }
+
+      const { rate, converted } = calculateConversion(
+        amt,
+        payCur,
+        accCur,
+        field === 'currency' ? undefined : rateInput
+      );
+
+      return {
+        ...updated,
+        exchangeRate: String(rate.toFixed(4)),
+        convertedAmount: String(converted.toFixed(2)),
+      };
+    });
+  };
+
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPaymentAccount) return;
+    try {
+      await apiClient.post(`/accounts/${selectedPaymentAccount.id}/payments`, {
+        amount: Number(paymentForm.amount),
+        currency: paymentForm.currency,
+        exchangeRate: Number(paymentForm.exchangeRate),
+        convertedAmount: Number(paymentForm.convertedAmount),
+        targetCurrency: selectedPaymentAccount.currency || 'TRY',
+        type: paymentForm.type,
+        bankName: paymentForm.bankName,
+        referenceNumber: paymentForm.referenceNumber,
+        notes: paymentForm.notes,
+      });
+      alert('Ödeme kaydı başarıyla eklendi.');
+      setPaymentModalOpen(false);
+      fetchAccounts();
+      if (selectedAccount && selectedAccount.id === selectedPaymentAccount.id) {
+        handleOpenDetails(selectedAccount);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Ödeme kaydedilirken bir hata oluştu.');
+    }
+  };
 
   const handleOpenReturnModal = (order: any) => {
     setSelectedReturnOrder(order);
@@ -167,6 +329,7 @@ const Accounts: React.FC = () => {
       phone: '',
       email: '',
       address: '',
+      currency: 'TRY',
     });
     setModalOpen(true);
   };
@@ -183,6 +346,7 @@ const Accounts: React.FC = () => {
       phone: account.phone || '',
       email: account.email || '',
       address: account.address || '',
+      currency: account.currency || 'TRY',
     });
     setModalOpen(true);
   };
@@ -672,6 +836,7 @@ const Accounts: React.FC = () => {
                     <th className="px-standart-padding py-3 border-b border-outline-variant">Tip</th>
                     <th className="px-standart-padding py-3 border-b border-outline-variant hidden md:table-cell">Telefon</th>
                     <th className="px-standart-padding py-3 border-b border-outline-variant hidden md:table-cell">Vergi Detayı</th>
+                    <th className="px-standart-padding py-3 border-b border-outline-variant text-right">Bakiye</th>
                     <th className="px-kenar-payi py-3 border-b border-outline-variant text-right">İşlemler</th>
                   </tr>
                 </thead>
@@ -703,6 +868,24 @@ const Accounts: React.FC = () => {
                       <td className="px-standart-padding py-4 text-on-surface-variant hidden md:table-cell">
                         {record.taxOffice ? `${record.taxOffice} / ` : ''}{record.taxNumber || '-'}
                       </td>
+                      <td className="px-standart-padding py-4 text-right font-bold whitespace-nowrap">
+                        <div className="flex flex-col items-end">
+                          <span className={record.balanceInDefault && record.balanceInDefault > 0 ? 'text-hata-kirmizisi' : record.balanceInDefault && record.balanceInDefault < 0 ? 'text-basari-yesili' : 'text-on-surface'}>
+                            {record.balanceInDefault ? record.balanceInDefault.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0,00'} {record.currency || 'TRY'}
+                          </span>
+                          <div className="text-[10px] text-on-surface-variant font-normal leading-tight opacity-75 group-hover:opacity-100 transition-opacity">
+                            {record.currency !== 'TRY' && (
+                              <div>₺{record.balanceTRY ? record.balanceTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0,00'}</div>
+                            )}
+                            {record.currency !== 'USD' && (
+                              <div>${record.balanceUSD ? record.balanceUSD.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0,00'}</div>
+                            )}
+                            {record.currency !== 'EUR' && (
+                              <div>€{record.balanceEUR ? record.balanceEUR.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0,00'}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-kenar-payi py-4 text-right">
                           <div className="flex justify-end gap-2 items-center">
                             {(record.type === 'CUSTOMER' || record.type === 'BOTH') && (
@@ -717,6 +900,16 @@ const Accounts: React.FC = () => {
                                 <span className="hidden sm:inline">Sipariş</span>
                               </button>
                             )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenPaymentModal(record);
+                              }}
+                              className="text-basari-yesili hover:bg-basari-yesili/20 font-semibold flex items-center gap-1 text-xs bg-basari-yesili/10 px-2.5 py-1 rounded border border-basari-yesili/20 transition-all shrink-0"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">payments</span>
+                              <span>Ödeme</span>
+                            </button>
                             <button 
                               onClick={(e) => handleOpenEdit(record, e)}
                               className="text-bilgi-mavisi hover:text-secondary font-semibold flex items-center gap-1 text-xs bg-bilgi-mavisi/10 px-2 py-1 rounded border border-bilgi-mavisi/20 hover:bg-bilgi-mavisi/20 transition-all shrink-0"
@@ -792,12 +985,38 @@ const Accounts: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-4 min-w-[200px] w-full md:w-auto">
+              <div className="flex flex-col items-end gap-2 min-w-[200px] w-full md:w-auto">
                 <div className="text-right">
                   <span className="text-kucuk-not uppercase tracking-widest text-on-surface-variant font-medium">Hesap Tipi</span>
                   <div className="text-lg font-bold text-bilgi-mavisi">
                     {selectedAccount.type === 'CUSTOMER' ? 'MÜŞTERİ' : selectedAccount.type === 'SUPPLIER' ? 'TEDARİKÇİ' : 'HEPSİ'}
                   </div>
+                </div>
+                <div className="text-right border-t border-outline-variant pt-2 w-full">
+                  <span className="text-kucuk-not uppercase tracking-widest text-on-surface-variant font-medium">Güncel Bakiye</span>
+                  <div className="text-xl font-bold flex items-center justify-end gap-1.5 mt-0.5">
+                    <span className={selectedAccount.balanceInDefault && selectedAccount.balanceInDefault > 0 ? 'text-hata-kirmizisi' : selectedAccount.balanceInDefault && selectedAccount.balanceInDefault < 0 ? 'text-basari-yesili' : 'text-on-surface'}>
+                      {selectedAccount.balanceInDefault ? selectedAccount.balanceInDefault.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0,00'} {selectedAccount.currency || 'TRY'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-on-surface-variant flex flex-col gap-0.5 mt-1 leading-tight">
+                    {selectedAccount.currency !== 'TRY' && (
+                      <div>TRY: ₺{selectedAccount.balanceTRY ? selectedAccount.balanceTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0,00'}</div>
+                    )}
+                    {selectedAccount.currency !== 'USD' && (
+                      <div>USD: ${selectedAccount.balanceUSD ? selectedAccount.balanceUSD.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0,00'}</div>
+                    )}
+                    {selectedAccount.currency !== 'EUR' && (
+                      <div>EUR: €{selectedAccount.balanceEUR ? selectedAccount.balanceEUR.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0,00'}</div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleOpenPaymentModal(selectedAccount)}
+                    className="mt-3 w-full px-4 py-2 bg-basari-yesili text-white hover:brightness-105 active:scale-95 text-xs font-bold rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm">payments</span>
+                    Ödeme Kaydet
+                  </button>
                 </div>
               </div>
             </div>
@@ -903,15 +1122,24 @@ const Accounts: React.FC = () => {
                             {order.status === 'draft' && <span className="px-2 py-0.5 bg-gray-50 text-on-surface-variant rounded-full text-[10px] font-bold border border-gray-100">TASLAK</span>}
                           </td>
                           <td className="px-standart-padding py-4 text-right">
-                            {order.status !== 'cancelled' && order.orderItems?.length > 0 && (
+                            <div className="flex justify-end items-center gap-2">
                               <button
-                                onClick={() => handleOpenReturnModal(order)}
-                                className="text-hata-kirmizisi hover:underline font-semibold flex items-center gap-1 text-xs bg-red-50 px-2.5 py-1 rounded border border-red-100 hover:bg-red-100 transition-all shrink-0 ml-auto"
+                                onClick={() => handleShowOrderDetails(order)}
+                                className="text-bilgi-mavisi hover:underline font-semibold flex items-center gap-1 text-xs bg-bilgi-mavisi/10 px-2.5 py-1 rounded border border-bilgi-mavisi/20 hover:bg-bilgi-mavisi/20 transition-all shrink-0"
                               >
-                                <span className="material-symbols-outlined text-[14px]">assignment_return</span>
-                                İade
+                                <span className="material-symbols-outlined text-[14px]">info</span>
+                                Detay
                               </button>
-                            )}
+                              {order.status !== 'cancelled' && order.orderItems?.length > 0 && (
+                                <button
+                                  onClick={() => handleOpenReturnModal(order)}
+                                  className="text-hata-kirmizisi hover:underline font-semibold flex items-center gap-1 text-xs bg-red-50 px-2.5 py-1 rounded border border-red-100 hover:bg-red-100 transition-all shrink-0"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">assignment_return</span>
+                                  İade
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1029,7 +1257,7 @@ const Accounts: React.FC = () => {
 
       {/* 3. NEW/EDIT CARI ACCOUNT MODAL */}
       {modalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-primary-container/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 flex items-center justify-center bg-primary-container/60 backdrop-blur-sm p-4" style={{ zIndex: 9999 }}>
           <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant">
             <div className="px-kenar-payi py-standart-padding bg-surface-container-low border-b border-outline-variant flex justify-between items-center">
               <h3 className="text-alt-baslik font-alt-baslik text-on-surface font-bold">
@@ -1144,6 +1372,20 @@ const Accounts: React.FC = () => {
                   placeholder="Tam adres bilgisini giriniz..." 
                   rows={3}
                 ></textarea>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-kucuk-not font-semibold text-on-surface-variant mb-1">Varsayılan Para Birimi</label>
+                <select
+                  name="currency"
+                  value={formValues.currency}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-outline-variant rounded focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white"
+                >
+                  <option value="TRY">Türk Lirası (TRY)</option>
+                  <option value="USD">Amerikan Doları (USD)</option>
+                  <option value="EUR">Euro (EUR)</option>
+                </select>
               </div>
 
               <div className="col-span-2 flex justify-end gap-3 mt-4">
@@ -1512,6 +1754,257 @@ const Accounts: React.FC = () => {
                 {selectedReturnRollIds.length} Topu İade Et
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* SİPARİŞ DETAYLARI MODALİ */}
+      {orderDetailsModalOpen && selectedOrderDetails && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+              <div>
+                <h4 className="text-lg font-bold flex items-center gap-2 text-on-surface">
+                  <span className="material-symbols-outlined text-secondary">shopping_bag</span>
+                  Sipariş Detayları: {selectedOrderDetails.orderNumber}
+                </h4>
+                <p className="text-xs text-on-surface-variant">Sipariş kapsamındaki kumaş ve renk grupları özeti</p>
+              </div>
+              <button
+                className="material-symbols-outlined text-outline hover:text-on-surface transition-colors p-1.5 hover:bg-surface-container rounded-full"
+                onClick={() => setOrderDetailsModalOpen(false)}
+              >
+                close
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 bg-arka-plan-gri space-y-4">
+              <div className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                      <th className="py-3 px-4">Kumaş Türü</th>
+                      <th className="py-3 px-4">Renk</th>
+                      <th className="py-3 px-4 text-center">Top Adedi</th>
+                      <th className="py-3 px-4 text-right">Toplam Metraj</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant text-sm text-on-surface">
+                    {(() => {
+                      const groups: { [key: string]: { fabricType: string; color: string; count: number; totalLength: number } } = {};
+                      (selectedOrderDetails.orderItems || []).forEach((item: any) => {
+                        const fabricType = item.roll?.fabricType || 'Bilinmeyen Kumaş';
+                        const color = item.roll?.color || 'Bilinmeyen Renk';
+                        const lengthM = Number(item.roll?.lengthM) || 0;
+                        
+                        const key = `${fabricType}-${color}`;
+                        if (!groups[key]) {
+                          groups[key] = {
+                            fabricType,
+                            color,
+                            count: 0,
+                            totalLength: 0,
+                          };
+                        }
+                        groups[key].count += 1;
+                        groups[key].totalLength += lengthM;
+                      });
+                      return Object.values(groups).map((group, idx) => (
+                        <tr key={idx} className="hover:bg-arka-plan-gri/30">
+                          <td className="py-3 px-4 font-bold">{group.fabricType}</td>
+                          <td className="py-3 px-4">
+                            <span className="bg-arka-plan-gri px-2 py-0.5 rounded text-xs">{group.color}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center font-bold text-secondary">
+                            {group.count} Top
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold text-bilgi-mavisi">
+                            {group.totalLength.toFixed(1)} mt
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-surface-container-low border-t border-outline-variant flex justify-between items-center">
+              <span className="text-xs text-on-surface-variant font-bold">
+                Toplam: {selectedOrderDetails.orderItems?.length || 0} Top Kumaş
+              </span>
+              <button
+                className="px-5 py-2 bg-secondary text-on-secondary hover:brightness-105 rounded-lg text-xs font-bold shadow-sm transition-all"
+                onClick={() => setOrderDetailsModalOpen(false)}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ÖDEME YAP MODALİ */}
+      {paymentModalOpen && selectedPaymentAccount && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col animate-fade-in">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+              <div>
+                <h4 className="text-lg font-bold flex items-center gap-2 text-on-surface">
+                  <span className="material-symbols-outlined text-basari-yesili">payments</span>
+                  Ödeme Kaydet: {selectedPaymentAccount.name}
+                </h4>
+                <p className="text-xs text-on-surface-variant">
+                  Cari Varsayılan Para Birimi: <span className="font-bold text-bilgi-mavisi">{selectedPaymentAccount.currency || 'TRY'}</span>
+                </p>
+              </div>
+              <button
+                className="material-symbols-outlined text-outline hover:text-on-surface transition-colors p-1.5 hover:bg-surface-container rounded-full"
+                onClick={() => setPaymentModalOpen(false)}
+              >
+                close
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handlePaymentSubmit}>
+              <div className="p-6 bg-arka-plan-gri space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Tutar */}
+                  <div>
+                    <label className="block text-xs font-semibold text-on-surface-variant mb-1">Ödeme Tutarı *</label>
+                    <input
+                      required
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={paymentForm.amount}
+                      onChange={(e) => handlePaymentFormChange('amount', e.target.value)}
+                      className="w-full px-3 py-2 border border-outline-variant rounded-lg focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white text-sm"
+                      placeholder="Tutar giriniz"
+                    />
+                  </div>
+
+                  {/* Ödeme Para Birimi */}
+                  <div>
+                    <label className="block text-xs font-semibold text-on-surface-variant mb-1">Ödeme Para Birimi *</label>
+                    <select
+                      value={paymentForm.currency}
+                      onChange={(e) => handlePaymentFormChange('currency', e.target.value)}
+                      className="w-full px-3 py-2 border border-outline-variant rounded-lg focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white text-sm cursor-pointer"
+                    >
+                      <option value="TRY">Türk Lirası (TRY)</option>
+                      <option value="USD">Amerikan Doları (USD)</option>
+                      <option value="EUR">Euro (EUR)</option>
+                    </select>
+                  </div>
+
+                  {/* Döviz Kuru */}
+                  {paymentForm.currency !== (selectedPaymentAccount.currency || 'TRY') && (
+                    <div className="col-span-2 bg-blue-50/50 border border-blue-100 p-3 rounded-lg flex flex-col gap-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-on-surface-variant font-medium">Dönüşüm Kuru ({paymentForm.currency} &rarr; {selectedPaymentAccount.currency || 'TRY'})</span>
+                        {ratesLoading ? (
+                          <span className="text-[10px] text-outline">Canlı kurlar yükleniyor...</span>
+                        ) : (
+                          <span className="text-[10px] text-basari-yesili font-semibold">Canlı Kur Aktif</span>
+                        )}
+                      </div>
+                      <div className="flex gap-3 items-center">
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min="0.0001"
+                          value={paymentForm.exchangeRate}
+                          onChange={(e) => handlePaymentFormChange('exchangeRate', e.target.value)}
+                          className="w-32 px-3 py-1.5 border border-outline-variant rounded-lg focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white text-xs font-bold text-center"
+                        />
+                        <div className="text-xs text-on-surface-variant">
+                          1 {selectedPaymentAccount.currency || 'TRY'} = {paymentForm.exchangeRate} {paymentForm.currency}
+                        </div>
+                      </div>
+                      <div className="text-xs font-bold text-bilgi-mavisi mt-1">
+                        Cari Borcundan Düşülecek Tutar: {Number(paymentForm.convertedAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {selectedPaymentAccount.currency || 'TRY'}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ödeme Türü */}
+                  <div>
+                    <label className="block text-xs font-semibold text-on-surface-variant mb-1">İşlem Türü *</label>
+                    <select
+                      value={paymentForm.type}
+                      onChange={(e) => handlePaymentFormChange('type', e.target.value)}
+                      className="w-full px-3 py-2 border border-outline-variant rounded-lg focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white text-sm cursor-pointer"
+                    >
+                      <option value="CASH">Nakit Ödeme</option>
+                      <option value="BANK_TRANSFER">Banka Havalesi</option>
+                    </select>
+                  </div>
+
+                  {/* Banka Adı */}
+                  {paymentForm.type === 'BANK_TRANSFER' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-on-surface-variant mb-1">Banka Adı</label>
+                      <input
+                        type="text"
+                        value={paymentForm.bankName}
+                        onChange={(e) => handlePaymentFormChange('bankName', e.target.value)}
+                        className="w-full px-3 py-2 border border-outline-variant rounded-lg focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white text-sm"
+                        placeholder="Örn: Garanti BBVA"
+                      />
+                    </div>
+                  )}
+
+                  {/* Referans No */}
+                  {paymentForm.type === 'BANK_TRANSFER' && (
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-on-surface-variant mb-1">Dekont / Referans No</label>
+                      <input
+                        type="text"
+                        value={paymentForm.referenceNumber}
+                        onChange={(e) => handlePaymentFormChange('referenceNumber', e.target.value)}
+                        className="w-full px-3 py-2 border border-outline-variant rounded-lg focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white text-sm"
+                        placeholder="Örn: FT123456789"
+                      />
+                    </div>
+                  )}
+
+                  {/* Açıklama */}
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-on-surface-variant mb-1">Açıklama / Notlar</label>
+                    <textarea
+                      value={paymentForm.notes}
+                      onChange={(e) => handlePaymentFormChange('notes', e.target.value)}
+                      className="w-full px-3 py-2 border border-outline-variant rounded-lg focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white text-sm resize-none"
+                      placeholder="Ödeme açıklaması giriniz..."
+                      rows={2}
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-surface-container-low border-t border-outline-variant flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="px-5 py-2 rounded-lg text-sm hover:bg-white border border-transparent hover:border-outline-variant transition-colors font-bold text-on-surface-variant"
+                  onClick={() => setPaymentModalOpen(false)}
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="bg-basari-yesili text-white px-6 py-2 rounded-lg font-bold hover:brightness-105 active:scale-95 transition-all flex items-center gap-1.5 text-sm"
+                >
+                  <span className="material-symbols-outlined text-sm">check_circle</span>
+                  Ödemeyi Kaydet
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

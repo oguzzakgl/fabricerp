@@ -38,12 +38,12 @@ export class PrismaService
       if (inviteCodeCount === 0) {
         await this.inviteCode.createMany({
           data: [
-            { code: 'NOVA-DEMO-1' },
-            { code: 'NOVA-DEMO-2' },
-            { code: 'NOVA-DEMO-3' },
-            { code: 'NOVA-DEMO-4' },
-            { code: 'NOVA-DEMO-5' },
-          ],
+            { code: 'NOVA-DEMO-1', plan: 'STARTER' },
+            { code: 'NOVA-DEMO-2', plan: 'PRO' },
+            { code: 'NOVA-DEMO-3', plan: 'PRO' },
+            { code: 'NOVA-DEMO-4', plan: 'ENTERPRISE' },
+            { code: 'NOVA-DEMO-5', plan: 'STARTER' },
+          ] as any[],
         });
         console.log('Seeded 5 demo invite codes successfully.');
       }

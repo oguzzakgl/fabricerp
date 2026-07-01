@@ -16,7 +16,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('--- USERS ---');
   const users = await prisma.user.findMany({
-    include: { tenant: true }
+    include: { tenant: true },
   });
   console.log(JSON.stringify(users, null, 2));
 
@@ -30,7 +30,7 @@ async function main() {
 }
 
 main()
-  .catch(e => console.error(e))
+  .catch((e) => console.error(e))
   .finally(async () => {
     await prisma.$disconnect();
     await pool.end();

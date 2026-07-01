@@ -6,9 +6,233 @@ body {
   margin: 0;
   padding: 0;
   font-family: 'Inter', sans-serif;
-  background-color: #F5F7FA;
+  background-color: var(--arka-plan-gri);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root {
+  --background: #fbf9fb;
+  --surface: #fbf9fb;
+  --on-surface: #1b1c1d;
+  --on-surface-variant: #43474d;
+  --arka-plan-gri: #F5F7FA;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f5f3f5;
+  --surface-container: #efedef;
+  --surface-container-high: #e9e7e9;
+  --outline-variant: #c4c6cd;
+  --secondary: #0057c2;
+  --on-secondary: #ffffff;
+  --sidebar-koyu: #001529;
+}
+
+html.dark {
+  --background: #0b0c10;
+  --surface: rgba(22, 28, 45, 0.4);
+  --on-surface: #f8fafc;
+  --on-surface-variant: #94a3b8;
+  --arka-plan-gri: #0e1117;
+  --surface-container-lowest: #161c2d;
+  --surface-container-low: #1b2336;
+  --surface-container: #222b3e;
+  --surface-container-high: #2a354c;
+  --outline-variant: rgba(255, 255, 255, 0.08);
+  --secondary: #52b788;
+  --on-secondary: #0b0c10;
+  --sidebar-koyu: #0e1117;
+}
+
+/* Dark mode class overrides for hardcoded Tailwind backgrounds */
+html.dark .bg-white {
+  background-color: var(--surface-container-lowest) !important;
+}
+html.dark .bg-surface-container-lowest {
+  background-color: var(--surface-container-lowest) !important;
+}
+html.dark .bg-surface-container-low {
+  background-color: var(--surface-container-low) !important;
+}
+html.dark .bg-surface-container {
+  background-color: var(--surface-container) !important;
+}
+html.dark .bg-surface-container-high {
+  background-color: var(--surface-container-high) !important;
+}
+html.dark .bg-surface-container-highest {
+  background-color: var(--surface-container-high) !important;
+}
+html.dark .bg-arka-plan-gri {
+  background-color: var(--arka-plan-gri) !important;
+}
+html.dark .bg-slate-50, html.dark .bg-gray-50 {
+  background-color: var(--surface-container-low) !important;
+}
+html.dark .bg-slate-100, html.dark .bg-gray-100 {
+  background-color: var(--surface-container) !important;
+}
+html.dark .bg-surface {
+  background-color: var(--surface) !important;
+}
+
+/* Dark mode generic badge overrides (replacing bright light-mode colors) */
+html.dark .bg-blue-50, html.dark .bg-blue-100, html.dark .bg-blue-200 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+html.dark .bg-emerald-50, html.dark .bg-emerald-100, html.dark .bg-emerald-200 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+html.dark .bg-green-50, html.dark .bg-green-100, html.dark .bg-green-200 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+  color: #4ade80 !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+html.dark .bg-purple-50, html.dark .bg-purple-100, html.dark .bg-purple-200 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  color: #c084fc !important;
+  border-color: rgba(168, 85, 247, 0.3) !important;
+}
+html.dark .bg-red-50, html.dark .bg-red-100, html.dark .bg-red-200 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+html.dark .bg-orange-50, html.dark .bg-orange-100, html.dark .bg-orange-200 {
+  background-color: rgba(249, 115, 22, 0.15) !important;
+  color: #fb923c !important;
+  border-color: rgba(249, 115, 22, 0.3) !important;
+}
+html.dark .bg-yellow-50, html.dark .bg-yellow-100, html.dark .bg-yellow-200,
+html.dark .bg-amber-50, html.dark .bg-amber-100, html.dark .bg-amber-200 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Light mode text colors map to bright readable variants in dark mode */
+html.dark .text-blue-700, html.dark .text-blue-800 { color: #60a5fa !important; }
+html.dark .text-emerald-700, html.dark .text-emerald-800 { color: #34d399 !important; }
+html.dark .text-green-700, html.dark .text-green-800 { color: #4ade80 !important; }
+html.dark .text-purple-700, html.dark .text-purple-800 { color: #c084fc !important; }
+html.dark .text-red-700, html.dark .text-red-800 { color: #f87171 !important; }
+html.dark .text-orange-700, html.dark .text-orange-800 { color: #fb923c !important; }
+
+/* Dark mode text color overrides */
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700,
+html.dark .text-gray-950,
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-on-surface {
+  color: var(--on-surface) !important;
+}
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-on-surface-variant {
+  color: var(--on-surface-variant) !important;
+}
+html.dark .text-slate-400,
+html.dark .text-gray-400 {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* Global Table & Table Header overrides in Dark Mode */
+html.dark table {
+  background-color: var(--surface-container-lowest) !important;
+}
+html.dark thead tr, 
+html.dark tr.bg-surface-container, 
+html.dark tr.bg-surface-container-low, 
+html.dark tr.bg-slate-50, 
+html.dark tr.bg-gray-50 {
+  background-color: var(--surface-container-low) !important;
+  color: var(--on-surface) !important;
+}
+html.dark table th, 
+html.dark th {
+  background-color: var(--surface-container-low) !important;
+  color: var(--on-surface) !important;
+  border-bottom-color: var(--outline-variant) !important;
+}
+html.dark table td, 
+html.dark td {
+  border-bottom-color: var(--outline-variant) !important;
+  color: var(--on-surface) !important;
+}
+html.dark tbody tr {
+  background-color: var(--surface-container-lowest) !important;
+}
+html.dark tbody tr:hover {
+  background-color: var(--surface-container-low) !important;
+}
+
+/* Dark mode border overrides */
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-outline-variant {
+  border-color: var(--outline-variant) !important;
+}
+
+/* Dark mode inputs, dropdowns and forms */
+html.dark input, 
+html.dark select, 
+html.dark textarea {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  color: var(--on-surface) !important;
+  border-color: var(--outline-variant) !important;
+}
+
+html.dark input::placeholder, 
+html.dark textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+html.dark select option {
+  background-color: #161c2d !important;
+  color: var(--on-surface) !important;
+}
+
+/* Antd components dark styling overrides */
+html.dark .ant-notification-notice {
+  background-color: var(--surface-container-lowest) !important;
+  border: 1px solid var(--outline-variant) !important;
+  color: var(--on-surface) !important;
+}
+html.dark .ant-notification-notice-message,
+html.dark .ant-notification-notice-description {
+  color: var(--on-surface) !important;
+}
+
+/* Antd Pagination overrides in dark mode */
+html.dark .ant-pagination-item {
+  background-color: var(--surface-container-lowest) !important;
+  border-color: var(--outline-variant) !important;
+}
+html.dark .ant-pagination-item a {
+  color: var(--on-surface) !important;
+}
+html.dark .ant-pagination-item-active {
+  background-color: var(--secondary) !important;
+  border-color: var(--secondary) !important;
+}
+html.dark .ant-pagination-item-active a {
+  color: var(--on-secondary) !important;
+}
+html.dark .ant-pagination-prev .ant-pagination-item-link,
+html.dark .ant-pagination-next .ant-pagination-item-link {
+  background-color: var(--surface-container-lowest) !important;
+  border-color: var(--outline-variant) !important;
+  color: var(--on-surface) !important;
 }
 
 .hide-scrollbar::-webkit-scrollbar {
@@ -21,3 +245,203 @@ body {
 .transition-all-custom {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* E-Arşiv Fatura Taslağı Özel Stilleri */
+.invoice-container {
+  max-width: 800px;
+  margin: 0 auto;
+  background: #fff;
+  color: #1e293b;
+}
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+}
+.seller-info {
+  max-width: 60%;
+}
+.seller-name {
+  font-size: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.02em;
+}
+.seller-details {
+  color: #475569;
+  margin: 2px 0;
+}
+.invoice-meta {
+  text-align: right;
+}
+.invoice-title {
+  font-size: 24px;
+  font-weight: 900;
+  color: #dc2626;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.05em;
+}
+.meta-item {
+  margin: 3px 0;
+  color: #475569;
+}
+.meta-bold {
+  font-weight: 700;
+  color: #0f172a;
+}
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+}
+.info-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
+}
+.info-card {
+  padding: 16px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 100px;
+}
+.info-card p {
+  margin: 4px 0;
+  color: #334155;
+}
+.info-card-name {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 13px;
+  margin-bottom: 6px !important;
+}
+.invoice-container table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 24px;
+  margin-bottom: 24px;
+  background-color: #fff !important;
+}
+.invoice-container th {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  font-weight: 700;
+  border-bottom: 2px solid #0f172a !important;
+  padding: 10px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  text-align: left;
+}
+.invoice-container td {
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0 !important;
+  font-size: 11px;
+  color: #334155 !important;
+  vertical-align: top;
+  background-color: #fff !important;
+}
+.summary-section {
+  display: grid;
+  grid-template-columns: 7fr 5fr;
+  gap: 30px;
+  margin-top: 24px;
+  padding-top: 24px;
+}
+.summary-left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.summary-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.word-total-box {
+  padding: 10px 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: inline-block;
+  color: #1e293b;
+}
+.payment-info-box {
+  padding: 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #1e293b;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  color: #475569;
+  font-size: 11px;
+}
+.grand-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 10px;
+  background-color: #f8fafc;
+  border-top: 2px solid #0f172a;
+  border-bottom: 2px solid #0f172a;
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+  margin-top: 8px;
+}
+.grand-total-val {
+  color: #1d4ed8;
+  font-size: 16px;
+}
+.footer-note {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  text-align: center;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+/* Karanlık Modda Faturanın Beyaz kalması için (Fatura standartı gereği beyaz olmalıdır) */
+html.dark .invoice-container,
+html.dark .invoice-container * {
+  background-color: #fff !important;
+  color: #1e293b !important;
+  border-color: #e2e8f0 !important;
+}
+html.dark .invoice-container .invoice-header {
+  border-bottom-color: #0f172a !important;
+}
+html.dark .invoice-container .invoice-title {
+  color: #dc2626 !important;
+}
+html.dark .invoice-container th {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-bottom-color: #0f172a !important;
+}
+html.dark .invoice-container .grand-total-row {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-top-color: #0f172a !important;
+  border-bottom-color: #0f172a !important;
+}
+html.dark .invoice-container .grand-total-val {
+  color: #1d4ed8 !important;
+}
+

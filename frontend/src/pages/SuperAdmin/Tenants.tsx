@@ -10,6 +10,7 @@ const Tenants: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ tenantName: '', adminEmail: '', adminPassword: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [planFilter, setPlanFilter] = useState<'ALL' | 'STARTER' | 'PRO' | 'ENTERPRISE'>('ALL');
 
   const loadTenants = useCallback(async () => {
     setLoading(true);
@@ -23,7 +24,18 @@ const Tenants: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => { loadTenants(); }, [loadTenants]);
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      if (active) {
+        await loadTenants();
+      }
+    };
+    void fetchData();
+    return () => {
+      active = false;
+    };
+  }, [loadTenants]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,10 +57,11 @@ const Tenants: React.FC = () => {
     }
   };
 
-  const filtered = tenants.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    (t.email || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = tenants.filter(t => {
+    if (planFilter !== 'ALL' && t.plan !== planFilter) return false;
+    return t.name.toLowerCase().includes(search.toLowerCase()) ||
+           (t.email || '').toLowerCase().includes(search.toLowerCase());
+  });
 
   if (loading) return (
     <div className="flex h-[70vh] items-center justify-center">
@@ -77,6 +90,49 @@ const Tenants: React.FC = () => {
         </button>
       </div>
 
+      <div className="flex gap-2 border-b border-outline-variant pb-2 overflow-x-auto whitespace-nowrap scrollbar-thin">
+        <button
+          onClick={() => setPlanFilter('ALL')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            planFilter === 'ALL'
+              ? 'bg-secondary text-on-secondary shadow-sm'
+              : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant'
+          }`}
+        >
+          Tümü ({tenants.length})
+        </button>
+        <button
+          onClick={() => setPlanFilter('STARTER')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            planFilter === 'STARTER'
+              ? 'bg-secondary text-on-secondary shadow-sm'
+              : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant'
+          }`}
+        >
+          Atölye (Starter) ({tenants.filter(t => t.plan === 'STARTER').length})
+        </button>
+        <button
+          onClick={() => setPlanFilter('PRO')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            planFilter === 'PRO'
+              ? 'bg-secondary text-on-secondary shadow-sm'
+              : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant'
+          }`}
+        >
+          Fabrika (Pro) ({tenants.filter(t => t.plan === 'PRO').length})
+        </button>
+        <button
+          onClick={() => setPlanFilter('ENTERPRISE')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            planFilter === 'ENTERPRISE'
+              ? 'bg-secondary text-on-secondary shadow-sm'
+              : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant'
+          }`}
+        >
+          Kurumsal (Enterprise) ({tenants.filter(t => t.plan === 'ENTERPRISE').length})
+        </button>
+      </div>
+
       <div className="bg-white rounded-2xl border border-outline-variant shadow-xs overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -84,6 +140,7 @@ const Tenants: React.FC = () => {
               <th className="py-3 px-4">Firma Adı</th>
               <th className="py-3 px-4">E-posta</th>
               <th className="py-3 px-4">Telefon</th>
+              <th className="py-3 px-4">Paket / Plan</th>
               <th className="py-3 px-4">Kayıt Tarihi</th>
               <th className="py-3 px-4">Kullanıcı</th>
               <th className="py-3 px-4 text-right">İşlemler</th>
@@ -95,6 +152,11 @@ const Tenants: React.FC = () => {
                 <td className="py-4 px-4 font-bold text-on-surface">{t.name}</td>
                 <td className="py-4 px-4 text-on-surface-variant">{t.email || '-'}</td>
                 <td className="py-4 px-4 text-on-surface-variant">{t.phone || '-'}</td>
+                <td className="py-4 px-4">
+                  {t.plan === 'STARTER' && <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-semibold">Atölye (Starter)</span>}
+                  {t.plan === 'PRO' && <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-xs font-semibold">Fabrika (Pro)</span>}
+                  {t.plan === 'ENTERPRISE' && <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-xs font-semibold">Kurumsal (Enterprise)</span>}
+                </td>
                 <td className="py-4 px-4 text-xs text-on-surface-variant">{new Date(t.createdAt).toLocaleDateString('tr-TR')}</td>
                 <td className="py-4 px-4">
                   <span className="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-bold">{t.users.length}</span>

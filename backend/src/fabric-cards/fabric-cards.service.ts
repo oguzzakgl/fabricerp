@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertFabricCardDto } from './dto/upsert-fabric-card.dto';
@@ -8,6 +8,9 @@ export class FabricCardsService {
   constructor(private prisma: PrismaService) {}
 
   async upsert(dto: UpsertFabricCardDto, tenantId: string) {
+    if (!tenantId) {
+      throw new BadRequestException('Süper admin kumaş kartelası oluşturamaz.');
+    }
     const { fabricType, pricePerMeter, imageUrl, colorMapping } = dto;
 
     const normalizedType = fabricType.trim().toLocaleUpperCase('tr-TR');
@@ -38,6 +41,9 @@ export class FabricCardsService {
   }
 
   async findAll(tenantId: string) {
+    if (!tenantId) {
+      return [];
+    }
     return this.prisma.fabricCard.findMany({
       where: { tenantId },
       orderBy: { fabricType: 'asc' },
@@ -45,6 +51,9 @@ export class FabricCardsService {
   }
 
   async findOne(fabricType: string, tenantId: string) {
+    if (!tenantId) {
+      return null;
+    }
     return this.prisma.fabricCard.findUnique({
       where: {
         fabricType_tenantId: {

@@ -6,6 +6,12 @@ export const ProtectedRoute: React.FC = () => {
   const { token, tenant, loading, user } = useAuth();
   const location = useLocation();
 
+  React.useEffect(() => {
+    if (!loading && !token) {
+      window.location.href = import.meta.env.VITE_MARKETING_URL || 'http://localhost:4000';
+    }
+  }, [loading, token]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-arka-plan-gri flex flex-col items-center justify-center gap-4">
@@ -17,7 +23,6 @@ export const ProtectedRoute: React.FC = () => {
   }
 
   if (!token) {
-    window.location.href = import.meta.env.VITE_MARKETING_URL || 'http://localhost:4000';
     return null;
   }
 

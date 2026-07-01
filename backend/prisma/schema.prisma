@@ -16,6 +16,7 @@ model Account {
   phone                String?
   email                String?
   address              String?
+  currency             String                @default("TRY")
   tenantId             String?               @map("tenant_id") @db.Uuid
   tenant               Tenant?               @relation(fields: [tenantId], references: [id])
   createdAt            DateTime              @default(now()) @map("created_at")
@@ -109,6 +110,7 @@ model Order {
   status       String      @default("draft") // "draft", "confirmed", "invoiced", "cancelled"
   notes        String?
   totalAmount  Decimal     @default(0) @map("total_amount") @db.Decimal(12, 2)
+  currency     String      @default("TRY")
   tenantId     String?     @map("tenant_id") @db.Uuid
   tenant       Tenant?     @relation(fields: [tenantId], references: [id])
   createdAt    DateTime    @default(now()) @map("created_at")
@@ -151,6 +153,7 @@ model Invoice {
   status           String               @default("draft") // "draft", "sent", "paid", "cancelled"
   notes            String?
   filePath         String?              @map("file_path") // Cloud Storage path
+  currency         String               @default("TRY")
   tenantId         String?              @map("tenant_id") @db.Uuid
   tenant           Tenant?              @relation(fields: [tenantId], references: [id])
   createdAt        DateTime             @default(now()) @map("created_at")
@@ -193,6 +196,9 @@ model FinancialTransaction {
   status          String    @default("pending") // "pending", "collected", "paid", "bounced", "cancelled", "endorsed"
   notes           String?
   collectedAt     DateTime? @map("collected_at")
+  convertedAmount Decimal?  @map("converted_amount") @db.Decimal(12, 2)
+  exchangeRate    Decimal?  @map("exchange_rate") @db.Decimal(10, 4)
+  targetCurrency  String?   @map("target_currency")
   tenantId        String?   @map("tenant_id") @db.Uuid
   tenant          Tenant?   @relation(fields: [tenantId], references: [id])
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -216,6 +222,8 @@ model Tenant {
   iban         String?
   logoUrl      String?   @map("logo_url")
   geminiApiKey String?   @map("gemini_api_key")
+  geminiPrompt String?   @map("gemini_prompt")
+  plan         String    @default("STARTER")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
@@ -240,6 +248,7 @@ model User {
   password   String
   name       String?
   role       String   @default("ADMIN")
+  plan       String   @default("STARTER")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -249,6 +258,7 @@ model User {
 model InviteCode {
   id        String    @id @default(uuid()) @db.Uuid
   code      String    @unique @map("code")
+  plan      String    @default("STARTER") // "STARTER", "PRO", "ENTERPRISE"
   isUsed    Boolean   @default(false) @map("is_used")
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")

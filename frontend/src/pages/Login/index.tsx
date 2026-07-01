@@ -71,31 +71,62 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-arka-plan-gri flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-outline-variant">
+    <div 
+      style={{
+        backgroundColor: '#0b0c10',
+        backgroundImage: 'radial-gradient(circle at 10% 20%, rgba(30, 96, 145, 0.15) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgba(82, 183, 136, 0.15) 0%, transparent 40%)',
+        backgroundAttachment: 'fixed',
+      }}
+      className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
+    >
+      <div 
+        style={{
+          background: 'rgba(22, 28, 45, 0.4)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+        }}
+        className="max-w-md w-full space-y-8 p-8 rounded-2xl"
+      >
         <div>
           {/* Header */}
           <div className="flex justify-center">
-            <span className="material-symbols-outlined text-secondary text-5xl animate-pulse">
+            <span 
+              style={{ color: '#52b788' }}
+              className="material-symbols-outlined text-5xl animate-pulse"
+            >
               layers
             </span>
           </div>
-          <h2 className="mt-6 text-center text-ust-baslik-md font-bold text-on-surface">
+          <h2 
+            style={{ fontFamily: "'Outfit', 'Inter', sans-serif", color: '#f8fafc' }}
+            className="mt-6 text-center text-ust-baslik-md font-bold"
+          >
             FabricERP Hesabınıza Giriş Yapın
           </h2>
-          <p className="mt-2 text-center text-govde-metin text-on-surface-variant">
+          <p 
+            style={{ color: '#94a3b8' }}
+            className="mt-2 text-center text-govde-metin"
+          >
             Tekstil Üretim Kontrol Paneli
           </p>
         </div>
 
         {error && (
-          <div className="bg-error-container border-l-4 border-error p-4 rounded-r-lg">
+          <div 
+            style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              borderLeft: '4px solid #ef4444',
+            }}
+            className="p-4 rounded-r-lg"
+          >
             <div className="flex">
               <div className="flex-shrink-0">
-                <span className="material-symbols-outlined text-error text-lg">error</span>
+                <span className="material-symbols-outlined text-lg" style={{ color: '#ef4444' }}>error</span>
               </div>
               <div className="ml-3">
-                <p className="text-sm text-on-error-container font-semibold">{error}</p>
+                <p className="text-sm font-semibold" style={{ color: '#f8fafc' }}>{error}</p>
               </div>
             </div>
           </div>
@@ -104,11 +135,17 @@ const Login: React.FC = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md space-y-4">
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
+              <label 
+                style={{ color: '#94a3b8' }}
+                className="text-[11px] font-bold uppercase tracking-wider block"
+              >
                 E-posta Adresi
               </label>
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-base">
+                <span 
+                  style={{ color: '#94a3b8' }}
+                  className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-base"
+                >
                   mail
                 </span>
                 <input
@@ -116,18 +153,29 @@ const Login: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-govde-metin focus:ring-2 focus:ring-bilgi-mavisi/30 focus:border-bilgi-mavisi outline-none transition-all"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: '#f8fafc',
+                  }}
+                  className="w-full pl-10 pr-3 py-2.5 rounded-lg text-govde-metin focus:border-[#52b788] focus:ring-1 focus:ring-[#52b788] outline-none transition-all placeholder:text-slate-500"
                   placeholder="isim@fabrika.com"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
+              <label 
+                style={{ color: '#94a3b8' }}
+                className="text-[11px] font-bold uppercase tracking-wider block"
+              >
                 Şifre
               </label>
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-base">
+                <span 
+                  style={{ color: '#94a3b8' }}
+                  className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-base"
+                >
                   lock
                 </span>
                 <input
@@ -135,7 +183,12 @@ const Login: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-govde-metin focus:ring-2 focus:ring-bilgi-mavisi/30 focus:border-bilgi-mavisi outline-none transition-all"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: '#f8fafc',
+                  }}
+                  className="w-full pl-10 pr-3 py-2.5 rounded-lg text-govde-metin focus:border-[#52b788] focus:ring-1 focus:ring-[#52b788] outline-none transition-all placeholder:text-slate-500"
                   placeholder="••••••••"
                 />
               </div>
@@ -146,28 +199,21 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-govde-metin font-bold text-on-secondary bg-secondary hover:bg-secondary/95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary active:scale-98 transition-all disabled:opacity-50"
+              style={{
+                backgroundColor: '#52b788',
+                color: '#0b0c10',
+                boxShadow: '0px 4px 15px rgba(82, 183, 136, 0.3)',
+              }}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-govde-metin font-bold hover:brightness-105 active:scale-98 transition-all disabled:opacity-50"
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
               ) : (
                 'Giriş Yap'
               )}
             </button>
           </div>
         </form>
-
-        <div className="text-center pt-4 border-t border-outline-variant">
-          <p className="text-govde-metin text-on-surface-variant">
-            Hesabınız yok mu?{' '}
-            <a
-              href="/register"
-              className="font-bold text-secondary hover:underline transition-colors"
-            >
-              Hemen Kaydolun
-            </a>
-          </p>
-        </div>
       </div>
     </div>
   );

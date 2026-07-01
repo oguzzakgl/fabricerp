@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   Injectable,
   ConflictException,
@@ -11,6 +12,41 @@ import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { MailService } from '../mail/mail.service';
 
+interface ExtendedInviteCode {
+  id: string;
+  code: string;
+  plan: string;
+  isUsed: boolean;
+  usedAt: Date | null;
+  createdAt: Date;
+}
+
+interface ExtendedUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  tenantId: string | null;
+  plan: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ExtendedTenant {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  taxOffice: string | null;
+  taxNumber: string | null;
+  iban: string | null;
+  logoUrl: string | null;
+  plan: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -20,9 +56,9 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const inviteRecord = await this.prisma.inviteCode.findUnique({
+    const inviteRecord = (await this.prisma.inviteCode.findUnique({
       where: { code: dto.inviteCode.trim().toUpperCase() },
-    });
+    })) as unknown as ExtendedInviteCode;
 
     if (!inviteRecord) {
       throw new BadRequestException('Geçersiz davetiye kodu.');
@@ -40,6 +76,16 @@ export class AuthService {
       throw new ConflictException('Bu e-posta adresi zaten kullanımda.');
     }
 
+    const existingTenant = await this.prisma.tenant.findFirst({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    if (existingTenant) {
+      throw new ConflictException(
+        'Bu e-posta adresine kayıtlı bir firma zaten mevcut.',
+      );
+    }
+
     // Hash password
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
@@ -54,14 +100,15 @@ export class AuthService {
         },
       });
 
-      const user = await tx.user.create({
+      const user = (await tx.user.create({
         data: {
           email: dto.email.toLowerCase(),
           password: passwordHash,
           tenantId: null, // Tenant onboarding adımında kurulacak
           role: 'ADMIN',
-        },
-      });
+          plan: inviteRecord.plan, // Davet kodundaki planı kullanıcıya ata
+        } as unknown as any,
+      })) as unknown as ExtendedUser;
 
       return { user };
     });
@@ -155,6 +202,7 @@ export class AuthService {
         ? {
             id: user.tenant.id,
             name: user.tenant.name,
+            plan: (user.tenant as unknown as ExtendedTenant).plan,
           }
         : null,
     };
@@ -189,6 +237,7 @@ export class AuthService {
             taxNumber: user.tenant.taxNumber,
             iban: user.tenant.iban,
             logoUrl: user.tenant.logoUrl,
+            plan: (user.tenant as unknown as ExtendedTenant).plan,
           }
         : null,
     };
@@ -212,14 +261,24 @@ export class AuthService {
       );
     }
 
+    const existingTenant = await this.prisma.tenant.findFirst({
+      where: { email: user.email.toLowerCase() },
+    });
+
+    if (existingTenant) {
+      throw new BadRequestException(
+        'Bu e-posta adresine kayıtlı bir firma zaten mevcut.',
+      );
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
-      // 1. Tenant oluştur
-      const tenant = await tx.tenant.create({
+      const tenant = (await tx.tenant.create({
         data: {
           name: dto.tenantName,
           email: user.email,
-        },
-      });
+          plan: (user as unknown as ExtendedUser).plan,
+        } as unknown as any,
+      })) as unknown as ExtendedTenant;
 
       // 2. Kullanıcıyı bu tenant'a bağla ve ismini güncelle
       const updatedUser = await tx.user.update({

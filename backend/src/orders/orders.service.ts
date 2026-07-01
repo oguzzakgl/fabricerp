@@ -97,6 +97,7 @@ export class OrdersService {
           customerId,
           notes,
           totalAmount,
+          currency: customer.currency || 'TRY',
           status: 'confirmed',
           tenantId,
           orderItems: {

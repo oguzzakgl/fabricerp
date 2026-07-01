@@ -33,14 +33,16 @@ export class RollsService {
       .trim()
       .toLocaleUpperCase('tr-TR');
     try {
-      const fabricCard = await this.prisma.fabricCard.findUnique({
-        where: {
-          fabricType_tenantId: {
-            fabricType: normalizedFabricType,
-            tenantId,
-          },
-        },
-      });
+      const fabricCard = tenantId
+        ? await this.prisma.fabricCard.findUnique({
+            where: {
+              fabricType_tenantId: {
+                fabricType: normalizedFabricType,
+                tenantId,
+              },
+            },
+          })
+        : null;
 
       if (fabricCard && fabricCard.colorMapping) {
         const mapping = fabricCard.colorMapping as Record<string, string>;

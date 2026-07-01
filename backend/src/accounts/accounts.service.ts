@@ -72,6 +72,113 @@ export class AccountsService {
     });
   }
 
+  convertCurrency(amount: number, from: string, to: string): number {
+    if (from === to) return amount;
+    const ratesInTry: { [key: string]: number } = {
+      TRY: 1.0,
+      USD: 34.0,
+      EUR: 37.0,
+    };
+    const amountInTry = amount * (ratesInTry[from] || 1.0);
+    return amountInTry / (ratesInTry[to] || 1.0);
+  }
+
+  calculateAccountBalances(account: any) {
+    const currency = account.currency || 'TRY';
+    
+    let totalOrderBorc = 0;
+    if (account.type === 'CUSTOMER' || account.type === 'BOTH') {
+      totalOrderBorc = (account.orders || []).reduce((sum: number, order: any) => {
+        if (order.status !== 'cancelled' && order.status !== 'draft') {
+          return sum + Number(order.totalAmount || 0);
+        }
+        return sum;
+      }, 0);
+    }
+
+    let totalYarnStockPayable = 0;
+    if (account.type === 'SUPPLIER' || account.type === 'BOTH') {
+      totalYarnStockPayable = (account.yarnStocks || []).reduce((sum: number, yarn: any) => {
+        return sum + (Number(yarn.initialKg || 0) * Number(yarn.unitPrice || 0));
+      }, 0);
+    }
+
+    let totalReceived = 0;
+    let totalPaid = 0;
+
+    (account.financialTransactions || []).forEach((tx: any) => {
+      if (tx.status === 'cancelled' || tx.status === 'bounced') return;
+      
+      let txAmount = Number(tx.amount || 0);
+      if (tx.currency !== currency) {
+        if (tx.convertedAmount && tx.targetCurrency === currency) {
+          txAmount = Number(tx.convertedAmount);
+        } else {
+          txAmount = this.convertCurrency(txAmount, tx.currency, currency);
+        }
+      }
+
+      if (tx.direction === 'RECEIVABLE') {
+        totalReceived += txAmount;
+      } else if (tx.direction === 'PAYABLE') {
+        totalPaid += txAmount;
+      }
+    });
+
+    let netBalance = 0;
+    if (account.type === 'CUSTOMER') {
+      netBalance = totalOrderBorc - totalReceived;
+    } else if (account.type === 'SUPPLIER') {
+      netBalance = -(totalYarnStockPayable - totalPaid);
+    } else {
+      netBalance = (totalOrderBorc - totalReceived) - (totalYarnStockPayable - totalPaid);
+    }
+
+    const balanceInDefault = netBalance;
+    const balanceTRY = this.convertCurrency(balanceInDefault, currency, 'TRY');
+    const balanceUSD = this.convertCurrency(balanceInDefault, currency, 'USD');
+    const balanceEUR = this.convertCurrency(balanceInDefault, currency, 'EUR');
+
+    return {
+      balanceTRY,
+      balanceUSD,
+      balanceEUR,
+      balanceInDefault,
+      defaultCurrency: currency,
+    };
+  }
+
+  async createPayment(
+    accountId: string,
+    paymentDto: any,
+    tenantId: string,
+  ) {
+    const account = await this.prisma.account.findFirst({
+      where: { id: accountId, tenantId },
+    });
+    if (!account) {
+      throw new NotFoundException(`Cari hesap bulunamadı.`);
+    }
+
+    return this.prisma.financialTransaction.create({
+      data: {
+        accountId,
+        type: paymentDto.type || 'CASH',
+        direction: account.type === 'SUPPLIER' ? 'PAYABLE' : 'RECEIVABLE',
+        amount: paymentDto.amount,
+        currency: paymentDto.currency || 'TRY',
+        convertedAmount: paymentDto.convertedAmount || null,
+        exchangeRate: paymentDto.exchangeRate || null,
+        targetCurrency: paymentDto.targetCurrency || null,
+        status: 'collected',
+        bankName: paymentDto.bankName || null,
+        referenceNumber: paymentDto.referenceNumber || null,
+        notes: paymentDto.notes || null,
+        tenantId,
+      },
+    });
+  }
+
   async findAll(
     params: {
       page?: number;
@@ -104,12 +211,26 @@ export class AccountsService {
         skip,
         take: limit,
         orderBy: { code: 'asc' },
+        include: {
+          orders: { where: { tenantId } },
+          yarnStocks: { where: { tenantId } },
+          financialTransactions: { where: { tenantId } },
+        },
       }),
       this.prisma.account.count({ where }),
     ]);
 
+    const mappedData = data.map((account) => {
+      const balances = this.calculateAccountBalances(account);
+      const { orders, yarnStocks, financialTransactions, ...rest } = account as any;
+      return {
+        ...rest,
+        ...balances,
+      };
+    });
+
     return {
-      data,
+      data: mappedData,
       total,
       page,
       limit,
@@ -151,7 +272,12 @@ export class AccountsService {
     if (!account) {
       throw new NotFoundException(`ID'si '${id}' olan Cari hesap bulunamadı.`);
     }
-    return account;
+
+    const balances = this.calculateAccountBalances(account);
+    return {
+      ...account,
+      ...balances,
+    };
   }
 
   async update(

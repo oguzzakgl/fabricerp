@@ -87,6 +87,7 @@ export class InvoicesService {
           subtotal,
           taxAmount,
           totalAmount,
+          currency: customer.currency || 'TRY',
           notes,
           status: 'sent',
           tenantId,

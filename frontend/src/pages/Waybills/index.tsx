@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import apiClient from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Account {
   id: string;
@@ -21,7 +22,16 @@ interface Roll {
   status: string;
 }
 
+interface FabricCard {
+  id: string;
+  fabricType: string;
+  pricePerMeter: number;
+  imageUrl?: string | null;
+  colorMapping?: Record<string, string> | null;
+}
+
 const Waybills: React.FC = () => {
+  const { tenant } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Account | null>(null);
@@ -31,6 +41,13 @@ const Waybills: React.FC = () => {
   
   const [barcodeSearch, setBarcodeSearch] = useState<string>('');
   const [rollSearchText, setRollSearchText] = useState<string>('');
+  
+  // Stok pop-up seçici state'leri
+  const [stockModalOpen, setStockModalOpen] = useState(false);
+  const [modalSearch, setModalSearch] = useState('');
+  const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
+  const [expandedFabrics, setExpandedFabrics] = useState<string[]>([]);
+  const [expandedColors, setExpandedColors] = useState<string[]>([]);
   const [priceInputs, setPriceInputs] = useState<{ [key: string]: string }>({});
   const [notes, setNotes] = useState<string>('');
   const [issueDate, setIssueDate] = useState<string>(
@@ -39,6 +56,23 @@ const Waybills: React.FC = () => {
   
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [fabricCardsMap, setFabricCardsMap] = useState<Record<string, FabricCard>>({});
+
+  const getMappedColorName = (fabricType: string, colorVal: string) => {
+    if (!colorVal) return 'Bilinmeyen Renk';
+    const targetFabricUpper = (fabricType || '').toUpperCase().trim();
+    const card = fabricCardsMap[targetFabricUpper];
+    if (card && card.colorMapping) {
+      if (card.colorMapping[colorVal]) {
+        return `Renk ${colorVal} (${card.colorMapping[colorVal]})`;
+      }
+      const cleanKey = colorVal.replace(/Renk\s*/i, '').trim();
+      if (card.colorMapping[cleanKey]) {
+        return `Renk ${cleanKey} (${card.colorMapping[cleanKey]})`;
+      }
+    }
+    return colorVal;
+  };
   const [companySettings, setCompanySettings] = useState<{
     companyName: string;
     taxOffice: string;
@@ -108,6 +142,57 @@ const Waybills: React.FC = () => {
     };
   }, [cameraModalOpen]);
 
+  const compressImage = (fileOrBlob: File | Blob): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(fileOrBlob);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const maxDim = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(fileOrBlob);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                resolve(fileOrBlob);
+              }
+            },
+            'image/webp',
+            0.70
+          );
+        };
+        img.onerror = () => resolve(fileOrBlob);
+      };
+      reader.onerror = () => resolve(fileOrBlob);
+    });
+  };
+
   const handleCaptureAndOcr = async () => {
     if (!videoRef.current || !isCameraActive) return;
 
@@ -153,8 +238,9 @@ const Waybills: React.FC = () => {
 
   const processOcrBlob = async (blob: Blob | File, fileName: string) => {
     try {
+      const compressed = await compressImage(blob);
       const formData = new FormData();
-      formData.append('file', blob, fileName);
+      formData.append('file', compressed, fileName.endsWith('.webp') ? fileName : `${fileName}.webp`);
 
       const response = await apiClient.post('/rolls/ocr', formData, {
         headers: {
@@ -199,14 +285,22 @@ const Waybills: React.FC = () => {
 
   const fetchData = React.useCallback(async () => {
     try {
-      const [accountsRes, rollsRes, settingsRes] = await Promise.all([
+      const [accountsRes, rollsRes, settingsRes, cardsRes] = await Promise.all([
         apiClient.get('/accounts', { params: { limit: 1000 } }),
         apiClient.get('/rolls', { params: { status: 'available', limit: 1000 } }),
         apiClient.get('/settings'),
+        apiClient.get('/fabric-cards'),
       ]);
 
       setAccounts(accountsRes.data.data || []);
       setAvailableRolls(rollsRes.data.data || []);
+      
+      const cardsMap = (cardsRes.data || []).reduce((acc: Record<string, FabricCard>, card: FabricCard) => {
+        acc[card.fabricType.toUpperCase().trim()] = card;
+        return acc;
+      }, {});
+      setFabricCardsMap(cardsMap);
+
       if (settingsRes.data) {
         setCompanySettings({
           companyName: settingsRes.data.companyName || '',
@@ -297,7 +391,8 @@ const Waybills: React.FC = () => {
   const getGroupedItems = () => {
     const groups: { [key: string]: Roll[] } = {};
     selectedRolls.forEach((roll) => {
-      const key = `${roll.fabricType} (${roll.color})`;
+      const mappedColor = getMappedColorName(roll.fabricType, roll.color);
+      const key = `${roll.fabricType} (${mappedColor})`;
       if (!groups[key]) {
         groups[key] = [];
       }
@@ -432,10 +527,12 @@ const Waybills: React.FC = () => {
 
   const filteredAvailableRolls = availableRolls.filter((roll) => {
     const term = rollSearchText.toLowerCase();
+    const mappedColor = getMappedColorName(roll.fabricType, roll.color).toLowerCase();
     return (
       roll.barcodeNumber.toLowerCase().includes(term) ||
       roll.fabricType.toLowerCase().includes(term) ||
-      roll.color.toLowerCase().includes(term)
+      roll.color.toLowerCase().includes(term) ||
+      mappedColor.includes(term)
     );
   });
 
@@ -533,21 +630,37 @@ const Waybills: React.FC = () => {
             >
               Ekle
             </button>
-            <button
-              type="button"
-              onClick={() => setCameraModalOpen(true)}
-              className="px-3.5 py-2 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg shadow-sm transition-all flex items-center justify-center"
-              title="Kamera ile Barkod Okut"
-            >
-              <span className="material-symbols-outlined text-xl">photo_camera</span>
-            </button>
+            {tenant?.plan !== 'STARTER' && (
+              <button
+                type="button"
+                onClick={() => setCameraModalOpen(true)}
+                className="px-3.5 py-2 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg shadow-sm transition-all flex items-center justify-center"
+                title="Kamera ile Barkod Okut"
+              >
+                <span className="material-symbols-outlined text-xl">photo_camera</span>
+              </button>
+            )}
           </form>
 
           {/* Listeden Arama ve Seçim */}
           <div className="space-y-2">
-            <label className="text-kucuk-not font-semibold text-on-surface-variant block uppercase tracking-wider">
-              Listeden Kumaş Topu Ara
-            </label>
+            <div className="flex justify-between items-center">
+              <label className="text-kucuk-not font-semibold text-on-surface-variant block uppercase tracking-wider">
+                Listeden Kumaş Topu Ara
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempSelectedIds([]);
+                  setModalSearch('');
+                  setStockModalOpen(true);
+                }}
+                className="text-[11px] font-bold text-secondary hover:underline flex items-center gap-1 bg-none border-none outline-none cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xs">inventory_2</span>
+                Stoktan Seç (Pop-up)
+              </button>
+            </div>
             <input
               type="text"
               placeholder="Kumaş türü, renk veya barkod ile ara..."
@@ -569,7 +682,7 @@ const Waybills: React.FC = () => {
                     >
                       <div>
                         <p className="font-bold text-on-surface">
-                          {roll.fabricType} ({roll.color})
+                          {roll.fabricType} ({getMappedColorName(roll.fabricType, roll.color)})
                         </p>
                         <p className="text-kucuk-not text-on-surface-variant">
                           Barkod: {roll.barcodeNumber}
@@ -606,7 +719,7 @@ const Waybills: React.FC = () => {
                 <div key={roll.id} className="py-2.5 flex justify-between items-center">
                   <div>
                     <p className="font-bold text-on-surface">
-                      {roll.fabricType} ({roll.color})
+                      {roll.fabricType} ({getMappedColorName(roll.fabricType, roll.color)})
                     </p>
                     <p className="text-kucuk-not text-on-surface-variant">
                       Barkod: {roll.barcodeNumber}
@@ -770,7 +883,7 @@ const Waybills: React.FC = () => {
 
       {/* PRINT PREVIEW MODAL */}
       {previewOpen && selectedCustomer && selectedRolls.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-xs p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center backdrop-blur-xs p-4" style={{ zIndex: 9999 }}>
           <div className="bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low no-print">
               <h4 className="text-alt-baslik font-bold flex items-center gap-2">
@@ -965,7 +1078,7 @@ const Waybills: React.FC = () => {
 
       {/* KAMERA OKUTMA MODALİ */}
       {cameraModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
           <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col">
             <div className="px-5 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
               <h4 className="text-alt-baslik font-bold flex items-center gap-2">
@@ -1051,6 +1164,282 @@ const Waybills: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* STOK SEÇİM POPUP MODALİ */}
+      {stockModalOpen && (() => {
+        const unselectedAvailableRolls = availableRolls.filter(
+          (roll) => !selectedRolls.some((sr) => sr.id === roll.id)
+        );
+        const filteredModalRolls = unselectedAvailableRolls.filter((roll) => {
+          const searchLower = modalSearch.toLowerCase();
+          const mappedColor = getMappedColorName(roll.fabricType, roll.color).toLowerCase();
+          return (
+            roll.barcodeNumber.toLowerCase().includes(searchLower) ||
+            roll.fabricType.toLowerCase().includes(searchLower) ||
+            roll.color.toLowerCase().includes(searchLower) ||
+            mappedColor.includes(searchLower)
+          );
+        });
+
+        // Kumaş türlerine ve ardından renklere göre gruplama
+        const groupedFabrics: { [fabricType: string]: {
+          fabricType: string;
+          colors: { [colorName: string]: Roll[] };
+          totalRolls: number;
+        } } = {};
+
+        filteredModalRolls.forEach((roll) => {
+          const fType = roll.fabricType || 'Bilinmeyen Kumaş';
+          const color = roll.color || 'Bilinmeyen Renk';
+          
+          if (!groupedFabrics[fType]) {
+            groupedFabrics[fType] = {
+              fabricType: fType,
+              colors: {},
+              totalRolls: 0,
+            };
+          }
+          
+          if (!groupedFabrics[fType].colors[color]) {
+            groupedFabrics[fType].colors[color] = [];
+          }
+          
+          groupedFabrics[fType].colors[color].push(roll);
+          groupedFabrics[fType].totalRolls += 1;
+        });
+
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+            <div className="bg-white w-full max-w-5xl rounded-xl shadow-2xl overflow-hidden border border-outline-variant flex flex-col max-h-[85vh]">
+              {/* Modal Header */}
+              <div className="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+                <div>
+                  <h4 className="text-xl font-bold flex items-center gap-2 text-on-surface">
+                    <span className="material-symbols-outlined text-2xl text-secondary">inventory_2</span>
+                    Kumaş Envanterinden Top Seç
+                  </h4>
+                  <p className="text-sm text-on-surface-variant">Stoktaki kumaş adına, rengine ve toplarına basarak seçim yapabilirsiniz.</p>
+                </div>
+                <button
+                  className="material-symbols-outlined text-outline hover:text-on-surface transition-colors p-2 rounded-full hover:bg-surface-container text-2xl"
+                  onClick={() => setStockModalOpen(false)}
+                >
+                  close
+                </button>
+              </div>
+
+              {/* Modal Search Bar */}
+              <div className="p-5 bg-arka-plan-gri border-b border-outline-variant">
+                <div className="relative w-full">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
+                  <input
+                    className="w-full pl-11 pr-4 py-3 bg-white border border-outline-variant rounded-lg text-base focus:ring-1 focus:ring-secondary outline-none shadow-sm"
+                    placeholder="Kumaş türü, renk veya barkod no ile arayın..."
+                    type="text"
+                    value={modalSearch}
+                    onChange={(e) => setModalSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Modal Content Area (Grouped List) */}
+              <div className="flex-1 overflow-y-auto p-6 bg-arka-plan-gri space-y-4">
+                {Object.keys(groupedFabrics).length === 0 ? (
+                  <div className="text-center py-16 text-on-surface-variant bg-white rounded-xl border border-outline-variant shadow-xs">
+                    <span className="material-symbols-outlined text-5xl opacity-30 mb-3">layers_clear</span>
+                    <p className="text-base">Stokta uygun kumaş topu bulunamadı.</p>
+                  </div>
+                ) : (
+                  Object.values(groupedFabrics).map((fabric) => {
+                    const isFabricExpanded = expandedFabrics.includes(fabric.fabricType);
+                    return (
+                      <div key={fabric.fabricType} className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+                        {/* Kumaş İsmi Başlığı */}
+                        <div
+                          className="p-5 flex justify-between items-center cursor-pointer hover:bg-surface-container-low transition-colors select-none"
+                          onClick={() => {
+                            setExpandedFabrics(prev =>
+                              prev.includes(fabric.fabricType)
+                                ? prev.filter(f => f !== fabric.fabricType)
+                                : [...prev, fabric.fabricType]
+                            );
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span 
+                              className="material-symbols-outlined text-outline text-2xl transition-transform duration-200"
+                              style={{ transform: isFabricExpanded ? 'rotate(90deg)' : 'none' }}
+                            >
+                              chevron_right
+                            </span>
+                            <span className="text-lg font-bold text-on-surface">{fabric.fabricType}</span>
+                          </div>
+                          <span className="bg-secondary/10 text-secondary px-3 py-1 rounded-full text-xs font-bold">
+                            {fabric.totalRolls} Top Müsait
+                          </span>
+                        </div>
+
+                        {/* Renkler Listesi */}
+                        {isFabricExpanded && (
+                          <div className="border-t border-outline-variant divide-y divide-outline-variant bg-surface-container-lowest">
+                            {Object.keys(fabric.colors).map((colorName) => {
+                              const colorKey = `${fabric.fabricType}-${colorName}`;
+                              const isColorExpanded = expandedColors.includes(colorKey);
+                              const rollsOfColor = fabric.colors[colorName];
+                              
+                              const allSelected = rollsOfColor.every(r => tempSelectedIds.includes(r.id));
+                              const someSelected = rollsOfColor.some(r => tempSelectedIds.includes(r.id));
+
+                              return (
+                                <div key={colorName} className="p-4 pl-8">
+                                  {/* Renk Başlığı Satırı */}
+                                  <div className="flex justify-between items-center py-2">
+                                    <div
+                                      className="flex items-center gap-2 cursor-pointer select-none"
+                                      onClick={() => {
+                                        setExpandedColors(prev =>
+                                          prev.includes(colorKey)
+                                            ? prev.filter(c => c !== colorKey)
+                                            : [...prev, colorKey]
+                                        );
+                                      }}
+                                    >
+                                      <span 
+                                        className="material-symbols-outlined text-outline text-xl transition-transform duration-200"
+                                        style={{ transform: isColorExpanded ? 'rotate(90deg)' : 'none' }}
+                                      >
+                                        chevron_right
+                                      </span>
+                                      <span className="text-sm font-bold text-on-surface-variant">Renk: {getMappedColorName(fabric.fabricType, colorName)}</span>
+                                      <span className="text-xs text-outline font-semibold">({rollsOfColor.length} Top)</span>
+                                    </div>
+
+                                    {/* Bu renkteki tümünü seç */}
+                                    <div className="flex items-center gap-2">
+                                      <label 
+                                        className="text-xs font-bold text-on-surface-variant cursor-pointer select-none"
+                                        htmlFor={`check-all-${colorKey}`}
+                                      >
+                                        Tümünü Seç
+                                      </label>
+                                      <input
+                                        id={`check-all-${colorKey}`}
+                                        type="checkbox"
+                                        className="rounded text-secondary focus:ring-secondary border-outline-variant cursor-pointer w-4 h-4"
+                                        checked={allSelected}
+                                        ref={(el) => {
+                                          if (el) {
+                                            el.indeterminate = someSelected && !allSelected;
+                                          }
+                                        }}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setTempSelectedIds(prev => {
+                                              const next = [...prev];
+                                              rollsOfColor.forEach(r => {
+                                                if (!next.includes(r.id)) next.push(r.id);
+                                              });
+                                              return next;
+                                            });
+                                          } else {
+                                            setTempSelectedIds(prev =>
+                                              prev.filter(id => !rollsOfColor.some(r => r.id === id))
+                                            );
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Top Listesi Tablosu (Renk genişletilmişse) */}
+                                  {isColorExpanded && (
+                                    <div className="mt-3 ml-6 overflow-hidden border border-outline-variant rounded-lg shadow-xs bg-white">
+                                      <table className="w-full text-left border-collapse">
+                                        <thead>
+                                          <tr className="bg-surface-container-low border-b border-outline-variant text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                                            <th className="py-3 px-4 w-12 text-center">Seç</th>
+                                            <th className="py-3 px-4">Barkod No</th>
+                                            <th className="py-3 px-4 text-right">Metraj (mt)</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-outline-variant">
+                                          {rollsOfColor.map((roll) => {
+                                            const isChecked = tempSelectedIds.includes(roll.id);
+                                            return (
+                                              <tr
+                                                key={roll.id}
+                                                className="hover:bg-arka-plan-gri/20 transition-colors text-sm font-semibold text-on-surface cursor-pointer"
+                                                onClick={() => {
+                                                  setTempSelectedIds(prev =>
+                                                    prev.includes(roll.id)
+                                                      ? prev.filter(id => id !== roll.id)
+                                                      : [...prev, roll.id]
+                                                  );
+                                                }}
+                                              >
+                                                <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                                  <input
+                                                    type="checkbox"
+                                                    className="rounded text-secondary focus:ring-secondary border-outline-variant cursor-pointer w-5 h-5"
+                                                    checked={isChecked}
+                                                    onChange={(e) => {
+                                                      setTempSelectedIds(prev =>
+                                                        e.target.checked
+                                                          ? [...prev, roll.id]
+                                                          : prev.filter(id => id !== roll.id)
+                                                      );
+                                                    }}
+                                                  />
+                                                </td>
+                                                <td className="py-3.5 px-4 font-mono text-sm">{roll.barcodeNumber}</td>
+                                                <td className="py-3.5 px-4 text-right text-base font-bold text-bilgi-mavisi">{roll.lengthM} mt</td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-5 bg-surface-container-low border-t border-outline-variant flex justify-between items-center">
+                <span className="text-sm text-on-surface-variant font-bold">
+                  {tempSelectedIds.length} top seçildi
+                </span>
+                <div className="flex gap-3">
+                  <button
+                    className="px-5 py-2.5 border border-outline-variant rounded-lg text-xs font-bold bg-white hover:bg-arka-plan-gri transition-colors"
+                    onClick={() => setStockModalOpen(false)}
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    className="px-6 py-2.5 bg-secondary text-on-secondary hover:brightness-105 rounded-lg text-xs font-bold shadow-md transition-all"
+                    disabled={tempSelectedIds.length === 0}
+                    onClick={() => {
+                      const rollsToAdd = availableRolls.filter(r => tempSelectedIds.includes(r.id));
+                      setSelectedRolls(prev => [...prev, ...rollsToAdd]);
+                      setStockModalOpen(false);
+                    }}
+                  >
+                    Seçilenleri İrsaliyeye Ekle
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

@@ -1,10 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 export class UpdateSettingsDto {
@@ -31,6 +31,21 @@ export class SettingsService {
   constructor(private prisma: PrismaService) {}
 
   async getSettings(tenantId: string) {
+    if (!tenantId) {
+      return {
+        taxRate: 20,
+        companyName: 'Super Admin',
+        taxOffice: '',
+        taxNumber: '',
+        phone: '',
+        email: 'admin@fabricerp.com',
+        address: '',
+        iban: '',
+        logoUrl: '',
+        geminiApiKey: '',
+      };
+    }
+
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
@@ -55,12 +70,32 @@ export class SettingsService {
   }
 
   async updateSettings(tenantId: string, data: UpdateSettingsDto) {
+    if (!tenantId) {
+      throw new BadRequestException(
+        'Süper yönetici firma ayarlarını güncelleyemez.',
+      );
+    }
+
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
 
     if (!tenant) {
       throw new NotFoundException('Fabrika bulunamadı.');
+    }
+
+    if (data.email) {
+      const existingTenant = await this.prisma.tenant.findFirst({
+        where: {
+          email: data.email.toLowerCase(),
+          id: { not: tenantId },
+        },
+      });
+      if (existingTenant) {
+        throw new BadRequestException(
+          'Bu e-posta adresine kayıtlı başka bir firma zaten mevcut.',
+        );
+      }
     }
 
     const updated = await this.prisma.tenant.update({
@@ -75,7 +110,7 @@ export class SettingsService {
         iban: data.iban,
         logoUrl: data.logoUrl,
         geminiApiKey: data.geminiApiKey,
-      } as unknown as Prisma.TenantUpdateInput,
+      },
     });
 
     return {
@@ -101,6 +136,9 @@ export class SettingsService {
   }
 
   async getUsers(tenantId: string) {
+    if (!tenantId) {
+      return [];
+    }
     return this.prisma.user.findMany({
       where: { tenantId },
       select: {
@@ -115,6 +153,9 @@ export class SettingsService {
   }
 
   async createUser(tenantId: string, data: CreateUserDto) {
+    if (!tenantId) {
+      throw new BadRequestException('Firma seçilmeden kullanıcı eklenemez.');
+    }
     const existing = await this.prisma.user.findUnique({
       where: { email: data.email.toLowerCase() },
     });
@@ -141,6 +182,9 @@ export class SettingsService {
   }
 
   async deleteUser(tenantId: string, userId: string, activeUserId: string) {
+    if (!tenantId) {
+      throw new BadRequestException('Geçersiz işlem.');
+    }
     if (userId === activeUserId) {
       throw new BadRequestException('Kendi kullanıcınızı silemezsiniz.');
     }
@@ -231,7 +275,11 @@ export class SettingsService {
     });
   }
 
-  async superCreateInvite(activeUserId: string, code: string) {
+  async superCreateInvite(
+    activeUserId: string,
+    code: string,
+    plan: string = 'STARTER',
+  ) {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
@@ -250,8 +298,9 @@ export class SettingsService {
     return this.prisma.inviteCode.create({
       data: {
         code: formattedCode,
+        plan,
         isUsed: false,
-      },
+      } as any,
     });
   }
 
@@ -281,6 +330,14 @@ export class SettingsService {
     });
     if (existing) {
       throw new BadRequestException('Bu e-posta adresi zaten kullanımda.');
+    }
+    const existingTenant = await this.prisma.tenant.findFirst({
+      where: { email: data.adminEmail.toLowerCase() },
+    });
+    if (existingTenant) {
+      throw new BadRequestException(
+        'Bu e-posta adresine kayıtlı bir firma zaten mevcut.',
+      );
     }
     const passwordHash = await bcrypt.hash(data.adminPassword, 10);
     return this.prisma.$transaction(async (tx) => {
@@ -433,6 +490,31 @@ export class SettingsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Kullanıcı bulunamadı.');
     await this.prisma.user.delete({ where: { id: userId } });
+    return { success: true };
+  }
+
+  async superUpdateTenantSettings(
+    activeUserId: string,
+    tenantId: string,
+    data: { geminiApiKey: string; geminiPrompt?: string },
+  ) {
+    const activeUser = await this.prisma.user.findUnique({
+      where: { id: activeUserId },
+    });
+    if (!activeUser || activeUser.tenantId !== null) {
+      throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
+    }
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    if (!tenant) throw new NotFoundException('Firma bulunamadı.');
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        geminiApiKey: data.geminiApiKey,
+        geminiPrompt: data.geminiPrompt,
+      },
+    });
     return { success: true };
   }
 }

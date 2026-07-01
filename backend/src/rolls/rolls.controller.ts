@@ -58,17 +58,27 @@ export class RollsController {
     }
 
     try {
-      // Veritabanından bu kiracıya ait kumaş isimlerini ve geminiApiKey bilgisini çek
-      const [fabricCards, tenant] = await Promise.all([
-        this.prisma.fabricCard.findMany({
-          where: { tenantId },
-          select: { fabricType: true },
-        }),
-        this.prisma.tenant.findUnique({
-          where: { id: tenantId },
-        }),
-      ]);
-      const fabricTypes = fabricCards.map((c) => c.fabricType);
+      let fabricTypes: string[] = [];
+      let tenant: any = null;
+
+      if (tenantId) {
+        // Veritabanından bu kiracıya ait kumaş isimlerini ve geminiApiKey bilgisini çek
+        const [fabricCards, tenantRes] = await Promise.all([
+          this.prisma.fabricCard.findMany({
+            where: { tenantId },
+            select: { fabricType: true },
+          }),
+          this.prisma.tenant.findUnique({
+            where: { id: tenantId },
+          }),
+        ]);
+        if (tenantRes && tenantRes.plan === 'STARTER') {
+          return { error: 'Görsel okutma (OCR) özelliği başlangıç paketinde desteklenmemektedir. Lütfen paketinizi yükseltin veya elle giriş yapın.' };
+        }
+        fabricTypes = fabricCards.map((c) => c.fabricType);
+        tenant = tenantRes;
+      }
+
       console.log(
         '[doOcr] Bulunan kumaş kartelası sayısı:',
         fabricTypes.length,
@@ -81,11 +91,13 @@ export class RollsController {
       });
       formData.append('file', blob, file.originalname);
       formData.append('fabric_types', JSON.stringify(fabricTypes));
-      if (tenant && (tenant as { geminiApiKey?: string | null }).geminiApiKey) {
-        formData.append(
-          'gemini_api_key',
-          (tenant as { geminiApiKey?: string | null }).geminiApiKey as string,
-        );
+      const tenantKey = tenant?.geminiApiKey?.trim();
+      if (tenantKey) {
+        formData.append('gemini_api_key', tenantKey);
+      }
+      const tenantPrompt = tenant?.geminiPrompt?.trim();
+      if (tenantPrompt) {
+        formData.append('custom_prompt', tenantPrompt);
       }
       console.log('[doOcr] Blob ve fabric_types oluşturuldu.');
 

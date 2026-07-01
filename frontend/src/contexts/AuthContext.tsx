@@ -20,6 +20,7 @@ interface Tenant {
   taxNumber?: string | null;
   iban?: string | null;
   logoUrl?: string | null;
+  plan?: string;
 }
 
 interface AuthContextType {

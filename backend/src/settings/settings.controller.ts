@@ -83,8 +83,12 @@ export class SettingsController {
   }
 
   @Post('super/invites')
-  superCreateInvite(@Req() req: RequestWithUser, @Body('code') code: string) {
-    return this.settingsService.superCreateInvite(req.user.userId, code);
+  superCreateInvite(
+    @Req() req: RequestWithUser,
+    @Body('code') code: string,
+    @Body('plan') plan?: string,
+  ) {
+    return this.settingsService.superCreateInvite(req.user.userId, code, plan);
   }
 
   @Delete('super/invites/:id')
@@ -148,5 +152,18 @@ export class SettingsController {
   @Delete('super/users/:id')
   superDeleteUser(@Req() req: RequestWithUser, @Param('id') id: string) {
     return this.settingsService.superDeleteUser(req.user.userId, id);
+  }
+
+  @Patch('super/tenants/:tenantId/settings')
+  superUpdateTenantSettings(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Body() body: { geminiApiKey: string; geminiPrompt?: string },
+  ) {
+    return this.settingsService.superUpdateTenantSettings(
+      req.user.userId,
+      tenantId,
+      body,
+    );
   }
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import apiClient from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Account {
   id: string;
@@ -105,6 +106,7 @@ const convertNumberToWords = (num: number): string => {
 };
 
 const Orders: React.FC = () => {
+  const { tenant } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   
   const [customers, setCustomers] = useState<Account[]>([]);
@@ -618,44 +620,201 @@ const Orders: React.FC = () => {
       return;
     }
 
-    let styles = '';
-    const styleSheets = document.styleSheets;
-    try {
-      for (let i = 0; i < styleSheets.length; i++) {
-        const rules = styleSheets[i].cssRules || styleSheets[i].rules;
-        if (rules) {
-          for (let j = 0; j < rules.length; j++) {
-            styles += rules[j].cssText;
-          }
-        }
-      }
-    } catch {
-      // ignore print window stylesheet access errors
-    }
-
     printWindow.document.write(`
       <html>
         <head>
           <title>Fatura Önizleme - Taslak</title>
           <style>
-            ${styles}
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+            
+            body {
+              font-family: 'Inter', sans-serif;
+              padding: 40px;
+              background-color: #fff;
+              color: #1e293b;
+              font-size: 12px;
+              line-height: 1.5;
+            }
+            .invoice-container {
+              max-width: 800px;
+              margin: 0 auto;
+              background: #fff;
+            }
+            .invoice-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 2px solid #0f172a;
+              padding-bottom: 20px;
+              margin-bottom: 24px;
+            }
+            .seller-info {
+              max-width: 60%;
+            }
+            .seller-name {
+              font-size: 16px;
+              font-weight: 800;
+              text-transform: uppercase;
+              color: #0f172a;
+              margin: 0 0 6px 0;
+              letter-spacing: -0.02em;
+            }
+            .seller-details {
+              color: #475569;
+              margin: 2px 0;
+            }
+            .invoice-meta {
+              text-align: right;
+            }
+            .invoice-title {
+              font-size: 24px;
+              font-weight: 900;
+              color: #dc2626;
+              margin: 0 0 6px 0;
+              letter-spacing: 0.05em;
+            }
+            .meta-item {
+              margin: 3px 0;
+              color: #475569;
+            }
+            .meta-bold {
+              font-weight: 700;
+              color: #0f172a;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-cols: 1fr 1fr;
+              gap: 30px;
+              border-bottom: 1px solid #e2e8f0;
+              padding-bottom: 24px;
+              margin-bottom: 24px;
+            }
+            .info-section-title {
+              font-size: 10px;
+              font-weight: 700;
+              color: #94a3b8;
+              letter-spacing: 0.05em;
+              text-transform: uppercase;
+              margin-bottom: 8px;
+              display: block;
+            }
+            .info-card {
+              padding: 16px;
+              background-color: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              min-height: 100px;
+            }
+            .info-card p {
+              margin: 4px 0;
+              color: #334155;
+            }
+            .info-card-name {
+              font-weight: 700;
+              color: #0f172a;
+              font-size: 13px;
+              margin-bottom: 6px !important;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 24px;
+              margin-bottom: 24px;
+            }
+            th {
+              background-color: #f8fafc;
+              color: #0f172a;
+              font-weight: 700;
+              border-bottom: 2px solid #0f172a;
+              padding: 10px 12px;
+              font-size: 11px;
+              text-transform: uppercase;
+              text-align: left;
+            }
+            td {
+              padding: 12px;
+              border-bottom: 1px solid #e2e8f0;
+              font-size: 11px;
+              color: #334155;
+              vertical-align: top;
+            }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .font-mono { font-family: monospace; }
+            .font-semibold { font-weight: 600; }
+            .font-bold { font-weight: 700; }
+            .summary-section {
+              display: grid;
+              grid-template-cols: 7fr 5fr;
+              gap: 30px;
+              margin-top: 24px;
+              padding-top: 24px;
+            }
+            .summary-left {
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+            }
+            .summary-right {
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+            }
+            .word-total-box {
+              padding: 10px 12px;
+              background-color: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 6px;
+              display: inline-block;
+            }
+            .payment-info-box {
+              padding: 12px;
+              background-color: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 6px;
+            }
+            .summary-row {
+              display: flex;
+              justify-content: space-between;
+              color: #475569;
+              font-size: 11px;
+            }
+            .grand-total-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 12px 10px;
+              background-color: #f8fafc;
+              border-top: 2px solid #0f172a;
+              border-bottom: 2px solid #0f172a;
+              font-weight: 700;
+              font-size: 13px;
+              color: #0f172a;
+              margin-top: 8px;
+            }
+            .grand-total-val {
+              color: #1d4ed8;
+              font-size: 16px;
+            }
+            .footer-note {
+              margin-top: 40px;
+              padding-top: 16px;
+              border-top: 1px solid #e2e8f0;
+              text-align: center;
+              font-size: 10px;
+              color: #94a3b8;
+            }
             @media print {
               body {
-                background: white;
-                color: black;
-                padding: 10px;
+                padding: 0;
+                margin: 0;
+                background-color: #fff;
               }
               .no-print {
                 display: none !important;
               }
             }
-            body {
-              font-family: sans-serif;
-              padding: 20px;
-              background-color: #fff;
-            }
           </style>
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         </head>
         <body>
           <div>
@@ -795,14 +954,16 @@ const Orders: React.FC = () => {
                 >
                   Ekle
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setCameraModalOpen(true)}
-                  className="px-2.5 py-1.5 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg shadow-sm transition-all flex items-center justify-center"
-                  title="Kamera ile Barkod Okut"
-                >
-                  <span className="material-symbols-outlined text-[18px]">photo_camera</span>
-                </button>
+                {tenant?.plan !== 'STARTER' && (
+                  <button
+                    type="button"
+                    onClick={() => setCameraModalOpen(true)}
+                    className="px-2.5 py-1.5 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg shadow-sm transition-all flex items-center justify-center"
+                    title="Kamera ile Barkod Okut"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">photo_camera</span>
+                  </button>
+                )}
               </div>
 
               <button
@@ -1110,72 +1271,72 @@ const Orders: React.FC = () => {
                 </div>
               )}
 
-              <div id="e-arsiv-invoice-container" className="bg-white text-black p-4 text-xs space-y-6">
+              <div id="e-arsiv-invoice-container" className="invoice-container bg-white text-black p-4 text-xs space-y-6">
                 {/* Logo & Seller Header */}
-                <div className="flex justify-between items-start border-b pb-6 border-black/10">
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-bold uppercase tracking-tight text-slate-800">{companySettings.companyName || 'FABRİKA ERP'}</h2>
-                    <p className="text-slate-600 max-w-md leading-relaxed">{companySettings.address || '-'}</p>
-                    <p className="text-slate-600">Tel: {companySettings.phone || '-'} | E-posta: {companySettings.email || '-'}</p>
-                    <p className="text-slate-600 font-semibold">VD: {companySettings.taxOffice || '-'} | VKN: {companySettings.taxNumber || '-'}</p>
+                <div className="invoice-header">
+                  <div className="seller-info">
+                    <h2 className="seller-name">{companySettings.companyName || 'FABRİKA ERP'}</h2>
+                    <p className="seller-details">{companySettings.address || '-'}</p>
+                    <p className="seller-details">Tel: {companySettings.phone || '-'} | E-posta: {companySettings.email || '-'}</p>
+                    <p className="seller-details font-bold">VD: {companySettings.taxOffice || '-'} | VKN: {companySettings.taxNumber || '-'}</p>
                   </div>
-                  <div className="text-right space-y-1">
-                    <h1 className="text-2xl font-black tracking-widest text-red-600 uppercase">TASLAK FATURA</h1>
-                    <p className="text-sm font-bold text-slate-700">Fatura No: FAT-2026-XXXXX</p>
-                    <p className="text-slate-500">Tarih: {formattedDate}</p>
-                    <p className="text-slate-500">Vade Tarihi: {formattedDueDate}</p>
+                  <div className="invoice-meta">
+                    <h1 className="invoice-title text-red-600">TASLAK FATURA</h1>
+                    <p className="meta-item font-bold">Fatura No: FAT-2026-XXXXX</p>
+                    <p className="meta-item">Tarih: {formattedDate}</p>
+                    <p className="meta-item">Vade Tarihi: {formattedDueDate}</p>
                   </div>
                 </div>
 
                 {/* Buyer / Customer Info */}
-                <div className="grid grid-cols-2 gap-8 border-b pb-6 border-black/10">
-                  <div className="space-y-2">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">ALICI / MÜŞTERİ</span>
-                    <div className="p-3 bg-slate-50 rounded border border-black/10 space-y-1 text-slate-800">
-                      <p className="font-bold text-slate-900">{selectedCustomer.name}</p>
-                      <p className="leading-relaxed">{selectedCustomer.address || '-'}</p>
+                <div className="info-grid">
+                  <div>
+                    <span className="info-section-title">ALICI / MÜŞTERİ</span>
+                    <div className="info-card">
+                      <p className="info-card-name">{selectedCustomer.name}</p>
+                      <p>{selectedCustomer.address || '-'}</p>
                       <p className="font-semibold mt-1">VD: {selectedCustomer.taxOffice || '-'} | VKN: {selectedCustomer.taxNumber || '-'}</p>
                       <p>Tel: {selectedCustomer.phone || '-'}</p>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">FATURA DETAYLARI</span>
-                    <div className="p-3 bg-slate-50 rounded border border-black/10 space-y-1 text-slate-800">
-                      <p><span className="font-semibold text-slate-900">Düzenleme Tarihi:</span> {formattedDate}</p>
-                      <p><span className="font-semibold text-slate-900">Vade Tarihi:</span> {formattedDueDate}</p>
-                      <p><span className="font-semibold text-slate-900">Para Birimi:</span> Türk Lirası (TRY)</p>
-                      {notes && <p className="mt-1 leading-normal"><span className="font-semibold text-red-600">Fatura Notu:</span> {notes}</p>}
+                  <div>
+                    <span className="info-section-title">FATURA DETAYLARI</span>
+                    <div className="info-card">
+                      <p><span className="font-semibold">Düzenleme Tarihi:</span> {formattedDate}</p>
+                      <p><span className="font-semibold">Vade Tarihi:</span> {formattedDueDate}</p>
+                      <p><span className="font-semibold">Para Birimi:</span> Türk Lirası (TRY)</p>
+                      {notes && <p className="mt-1"><span className="font-semibold text-red-600">Fatura Notu:</span> {notes}</p>}
                     </div>
                   </div>
                 </div>
 
                 {/* Items Table */}
-                <table className="w-full text-left text-xs border-collapse mt-6">
+                <table>
                   <thead>
-                    <tr className="border-b border-black font-semibold text-slate-900 bg-slate-50">
-                      <th className="py-2 px-1 text-center w-8">No</th>
-                      <th className="py-2 px-2">Mal/Hizmet Açıklaması</th>
-                      <th className="py-2 px-2 text-center">Miktar</th>
-                      <th className="py-2 px-2 text-center">Birim</th>
-                      <th className="py-2 px-2 text-right">Birim Fiyat</th>
-                      <th className="py-2 px-2 text-center w-16">KDV %</th>
-                      <th className="py-2 px-2 text-right w-24">KDV Tutarı</th>
-                      <th className="py-2 px-2 text-right w-28">Tutar</th>
+                    <tr>
+                      <th className="text-center w-8">No</th>
+                      <th>Mal/Hizmet Açıklaması</th>
+                      <th className="text-center">Miktar</th>
+                      <th className="text-center">Birim</th>
+                      <th className="text-right">Birim Fiyat</th>
+                      <th className="text-center w-16">KDV %</th>
+                      <th className="text-right w-24">KDV Tutarı</th>
+                      <th className="text-right w-28">Tutar</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black/10 text-slate-800">
+                  <tbody>
                     {orderItems.map((item, idx) => {
                       const itemKdv = item.total * (taxRate / 100);
                       return (
-                        <tr key={item.id} className="align-top">
-                          <td className="py-3 px-1 text-center font-mono">{idx + 1}</td>
-                          <td className="py-3 px-2 font-medium">{item.description}</td>
-                          <td className="py-3 px-2 text-center font-semibold">{item.quantity.toFixed(2)}</td>
-                          <td className="py-3 px-2 text-center">Metre</td>
-                          <td className="py-3 px-2 text-right font-mono">{item.unitPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
-                          <td className="py-3 px-2 text-center font-mono">%{taxRate}</td>
-                          <td className="py-3 px-2 text-right font-mono">{itemKdv.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
-                          <td className="py-3 px-2 text-right font-semibold font-mono">{(item.total).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+                        <tr key={item.id}>
+                          <td className="text-center font-mono">{idx + 1}</td>
+                          <td className="font-semibold">{item.description}</td>
+                          <td className="text-center font-bold">{item.quantity.toFixed(2)}</td>
+                          <td className="text-center">Metre</td>
+                          <td className="text-right font-mono">{item.unitPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+                          <td className="text-center font-mono">%{taxRate}</td>
+                          <td className="text-right font-mono">{itemKdv.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+                          <td className="text-right font-bold font-mono">{(item.total).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
                         </tr>
                       );
                     })}
@@ -1183,38 +1344,38 @@ const Orders: React.FC = () => {
                 </table>
 
                 {/* Calculations & Summary */}
-                <div className="grid grid-cols-12 gap-6 mt-6 pt-6 border-t border-black text-xs">
-                  <div className="col-span-7 space-y-4">
+                <div className="summary-section">
+                  <div className="summary-left">
                     <div>
-                      <span className="font-semibold block mb-1">Yazı ile:</span>
-                      <span className="font-bold text-slate-900 border-b border-black/10 pb-1 inline-block bg-slate-50 px-2 py-1 rounded">
+                      <span className="font-bold block mb-1">Yazı ile:</span>
+                      <span className="word-total-box font-bold">
                         Yalnız #{convertNumberToWords(total)}#
                       </span>
                     </div>
                     {companySettings.iban && (
-                      <div className="bg-slate-50 border border-black/10 p-3 rounded space-y-1">
-                        <span className="font-semibold text-slate-900 text-[11px] uppercase tracking-wider block">Ödeme Bilgileri</span>
-                        <p className="font-mono text-xs text-slate-700"><span className="font-semibold text-slate-900">IBAN:</span> {companySettings.iban}</p>
+                      <div className="payment-info-box">
+                        <span className="font-bold text-[11px] uppercase tracking-wider block mb-1">Ödeme Bilgileri</span>
+                        <p className="font-mono text-xs"><span className="font-bold">IBAN:</span> {companySettings.iban}</p>
                       </div>
                     )}
                   </div>
-                  <div className="col-span-5 space-y-2 text-slate-700">
-                    <div className="flex justify-between">
+                  <div className="summary-right">
+                    <div className="summary-row">
                       <span>Mal/Hizmet Toplam Tutarı (Matrah):</span>
-                      <span className="font-mono font-semibold text-slate-900">{subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                      <span className="font-mono font-semibold">{subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="summary-row">
                       <span>Hesaplanan KDV (%{taxRate}):</span>
-                      <span className="font-mono font-semibold text-slate-900">{kdvAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                      <span className="font-mono font-semibold">{kdvAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                     </div>
-                    <div className="flex justify-between text-sm font-bold border-t border-black pt-2 text-slate-950 bg-slate-50 px-2 py-1 rounded">
+                    <div className="grand-total-row">
                       <span>Ödenecek Tutar (Genel Toplam):</span>
-                      <span className="font-mono text-blue-700 text-base">{total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                      <span className="font-mono grand-total-val">{total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-8 pt-4 border-t border-black/10 text-[10px] text-slate-500 text-center">
+                <div className="footer-note">
                   Bu belge 213 sayılı V.U.K. uyarınca Gelir İdaresi Başkanlığı e-Arşiv mevzuatına göre oluşturulan taslak fatura önizlemesidir. Mali değeri yoktur.
                 </div>
               </div>

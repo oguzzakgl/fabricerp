@@ -62,7 +62,7 @@ if gemini_api_key:
     genai.configure(api_key=gemini_api_key)
 
 class FabricOcrResult(BaseModel):
-    fabricType: str = Field(description="Kumaş türü/adı (Örn: Rona, Croc, Ribana, İki İplik vb.). En uygun bilinen kumaş adını fuzzy match ederek veya doğrudan eşleştirerek belirle.")
+    fabricType: str = Field(description="Kumaş türü/adı (Örn: Rona, Croc, Ribana, İki İplik vb.). En uygun bilinen kumaş adını fuzzy match ederek veya doğrudan eşleştirerek belirle. KESİNLİKLE 'ADI', 'KUMAŞ ADI', 'KUMAS ADI', 'KUMAŞ', 'KALİTE', 'KALITE', 'LYCRA', 'LCYRA', 'LIKRA', 'EN LYCRA', 'ENLYCRA' gibi kelimelerin kendisini döndürme. Bu başlığın yanında/altında yazan gerçek kumaş adını (Örn: RONA, CROC, CORES vb.) döndür.")
     lengthM: float = Field(description="Metre cinsinden kumaş uzunluğu (ondalıklı sayı, Örn: 100.5, 45.2). Eğer bulunamazsa 0.0.")
     netWeightKg: float = Field(description="Kilogram cinsinden kumaş ağırlığı (ondalıklı sayı, Örn: 22.4, 15.0). Eğer bulunamazsa 0.0.")
     colorCode: str = Field(description="Renk kodu veya numarası (Örn: 055, 1024, 7). Eğer bulunamazsa boş string.")
@@ -90,15 +90,18 @@ def get_paddle_ocr():
     return _ocr_model
 
 # Bilinen kumaş listesi (Fuzzy Matching için)
-KNOWN_FABRICS = ["RONA", "CROC", "CORES", "SÜPREM", "SUPREM", "İKİ İPLİK", "IKI IPLIK", "ÜÇ İPLİK", "UC IPLIK", "KAŞKORSE", "KASKORSE", "RİBANA", "RIBANA", "İNTERLOK", "INTERLOK", "EN LYCRA"]
+KNOWN_FABRICS = ["RONA", "CROC", "CORES", "SÜPREM", "SUPREM", "İKİ İPLİK", "IKI IPLIK", "ÜÇ İPLİK", "UC IPLIK", "KAŞKORSE", "KASKORSE", "RİBANA", "RIBANA", "İNTERLOK", "INTERLOK"]
 
-def get_fuzzy_fabric_name(detected_name: str) -> str:
+def get_fuzzy_fabric_name(detected_name: str, custom_fabrics: Optional[list] = None) -> str:
     if not detected_name:
         return ""
     detected_upper = detected_name.upper().strip()
-    matches = difflib.get_close_matches(detected_upper, KNOWN_FABRICS, n=1, cutoff=0.7)
+    lookup_list = custom_fabrics if (custom_fabrics and len(custom_fabrics) > 0) else KNOWN_FABRICS
+    lookup_upper = [f.upper().strip() for f in lookup_list]
+    matches = difflib.get_close_matches(detected_upper, lookup_upper, n=1, cutoff=0.7)
     if matches:
-        return matches[0]
+        matched_idx = lookup_upper.index(matches[0])
+        return lookup_list[matched_idx]
     return detected_name
 
 def clean_ocr_number(val_str: str) -> str:
@@ -153,9 +156,8 @@ def resize_if_needed(img_np, target_width=1000):
 
 def preprocess_image(img_np):
     gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     gray = clahe.apply(gray)
-    gray = cv2.medianBlur(gray, 3)
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     sharpened = cv2.filter2D(gray, -1, kernel)
     return cv2.cvtColor(sharpened, cv2.COLOR_GRAY2BGR)
@@ -203,38 +205,56 @@ def get_gemini_model(api_key: str):
     return _gemini_model
 
 @app.post("/ocr")
-def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None), gemini_api_key: Optional[str] = Form(None)):
-    print(f"FastAPI: Istek alindi. Dosya adi: {file.filename}")
-    contents = file.file.read()
-    print(f"FastAPI: Dosya okundu. Boyut: {len(contents)} byte")
+async def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None), gemini_api_key: Optional[str] = Form(None), custom_prompt: Optional[str] = Form(None)):
+    filename = file.filename or ""
+    print(f"FastAPI: Istek alindi. Dosya adi: {filename}")
+    original_contents = await file.read()
+    print(f"FastAPI: Dosya okundu. Boyut: {len(original_contents)} byte")
     
-    # Görsel Boyutu ve Kalitesi Optimizasyonu (Network ve Model hızı için)
+    # Gemini için optimize edilmiş kopya hazırlayalım (Görsel işleme optimizasyonu)
+    gemini_contents = original_contents
     try:
-        nparr = np.frombuffer(contents, np.uint8)
+        nparr = np.frombuffer(original_contents, np.uint8)
         img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img_np is not None:
-            # Genişliği maksimum 800px yap (Okunabilirlik korunur, dosya boyutu ciddi oranda düşer)
-            img_resized = resize_if_needed(img_np, target_width=800)
-            # %70 kalitede WebP olarak sıkıştır (WebP, JPEG'e göre çok daha küçük boyutludur)
-            success, encoded_img = cv2.imencode('.webp', img_resized, [int(cv2.IMWRITE_WEBP_QUALITY), 70])
+            # 1. Genişliği maksimum 600px yap (Okuma kalitesini bozmadan veri boyutunu minimize eder)
+            img_resized = resize_if_needed(img_np, target_width=600)
+            
+            # 2. Ön İşleme (Grayscale + Kontrast Artırımı + Keskinleştirme)
+            # Gri tonlama
+            gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
+            # CLAHE kontrast artırımı
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            gray_clahe = clahe.apply(gray)
+            # Keskinleştirme (Sharpening)
+            kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+            sharpened = cv2.filter2D(gray_clahe, -1, kernel)
+            
+            # 3. WebP olarak %65 kalitede sıkıştır
+            success, encoded_img = cv2.imencode('.webp', sharpened, [cv2.IMWRITE_WEBP_QUALITY, 65])
             if success:
-                contents = encoded_img.tobytes()
-                print(f"FastAPI: Görsel WebP formatında optimize edildi. Yeni boyut: {len(contents)} byte")
+                gemini_contents = encoded_img.tobytes()
+                print(f"FastAPI: Görsel optimize edildi (600px, CLAHE, WebP 65). Yeni boyut: {len(gemini_contents)} byte")
     except Exception as img_err:
         print(f"UYARI: Görsel optimizasyonu yapılamadı, orijinal dosya kullanılacak: {img_err}")
     
-    apiKey = gemini_api_key or os.environ.get("GEMINI_API_KEY")
+    # Sanitize the incoming API key parameter
+    raw_key = gemini_api_key.strip() if gemini_api_key else ""
+    if raw_key in ["", "null", "undefined"]:
+        raw_key = ""
+    apiKey = raw_key if raw_key else os.environ.get("GEMINI_API_KEY")
     ocr_engine = os.environ.get("OCR_ENGINE", "gemini").lower()
     
     # Veritabanından gelen kumaş listesini prompt kuralına dönüştür
     fabric_list_instruction = ""
+    user_fabrics = []
     if fabric_types:
         try:
-            fabric_list = json.loads(fabric_types)
-            if fabric_list and isinstance(fabric_list, list):
+            user_fabrics = json.loads(fabric_types)
+            if user_fabrics and isinstance(user_fabrics, list):
                 fabric_list_instruction = (
                     f"\nKRİTİK KURAL - kumaş türünü (fabricType) SADECE şu listede yer alan kayıtlı kumaş isimlerinden biriyle birebir eşleştirerek (veya en yakın olanına benzeterek) döndür:\n"
-                    f"Kayıtlı Kumaş Listesi: {fabric_list}\n"
+                    f"Kayıtlı Kumaş Listesi: {user_fabrics}\n"
                     "Listede olmayan hiçbir kumaş ismini döndürme. Eğer etiket üzerindeki kumaş adı bu listedeki hiçbir isimle makul ölçüde benzer değilse 'Bilinmeyen Kumaş' döndür."
                 )
         except Exception as e:
@@ -242,19 +262,40 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
     
     if ocr_engine == "gemini" and apiKey:
         try:
+            # API Anahtarı format doğrulaması (gRPC kilitlenmelerini önlemek için)
+            if not re.match(r"^AIzaSy[a-zA-Z0-9_-]{33}$", apiKey):
+                raise ValueError("Gecersiz Gemini API anahtari formati. Dogrulama atlaniyor.")
+                
             print("FastAPI: Gemini Multimodal analizi basliyor...")
             model = get_gemini_model(apiKey)
-            response = model.generate_content(
-                [
-                    {"mime_type": "image/webp", "data": contents},
-                    "Sen tekstil etiketlerini analiz eden uzman bir yapay zekasın. Görseldeki etiket bilgilerini şu kurallara göre ayıkla:\n"
-                    "1. fabricType (Kumaş Türü): Etiket üzerindeki 'KALİTE' (KALITE) ve 'KUMAŞ ADI' (KUMAS ADI) alanlarının her ikisini de oku. Bu iki alandan hangisi asıl kumaş ismini/cinsini (Örn: RONA, CROC, COSMOS, MINAR, SÜPREM, İKİ İPLİK, RİBANA, KAŞKORSE, İNTERLOK vb.) içeriyorsa o değeri seç. 'EN LYCRA', 'LYCRA', 'LIKRA' gibi esneklik belirten genel ifadeler yerine, spesifik kumaş türünü (Örn: RONA, COSMOS veya SÜPREM) tercih et."
+            
+            # Determine prompt instruction based on custom_prompt parameter
+            sanitized_custom_prompt = custom_prompt.strip() if custom_prompt else ""
+            if sanitized_custom_prompt in ["", "null", "undefined"]:
+                sanitized_custom_prompt = ""
+                
+            if sanitized_custom_prompt:
+                instruction = sanitized_custom_prompt
+                if fabric_list_instruction:
+                    instruction += f"\n{fabric_list_instruction}"
+            else:
+                instruction = (
+                    "Sen tekstil etiketlerini analiz eden uzman bir yapay zekasın. Görseldeki etiket bilgilerini şu etiket şablonuna göre ayıkla:\n\n"
+                    "ŞABLON:\n"
+                    "- fabricType (Kumaş Adı / Kalite): Etiketteki 'KALİTE' veya 'KUMAŞ ADI' karşılığındaki gerçek kumaş cinsi (Örn: RONA, CROC, CORES, SÜPREM, RİBANA vb.). KESİNLİKLE 'LYCRA', 'LCYRA', 'LIKRA', 'EN LYCRA', 'ENLYCRA', 'ADI', 'KUMAŞ ADI', 'KUMAŞ', 'KALİTE', 'KALITE' kelimelerinin kendilerini buraya yazma. Bunların yanında veya altında yazan gerçek kumaş ismini bul.\n"
+                    "- colorCode (Renk Kodu): Etiketteki 'COLOR' veya 'RENK' yanındaki sayısal/kısa kod (Örn: 4, 6, 12, 055. 1 ile 13 arası tam sayılara öncelik ver. Bulunamazsa boş bırak).\n"
+                    "- lengthM (Metre / Uzunluk): Etiketteki 'Mt', 'MT', 'M' veya 'Metre' yanındaki sayısal uzunluk (Örn: 89.50, 73.90).\n"
+                    "- netWeightKg (Net Ağırlık / Kg): Etiketteki 'Kg', 'KG', 'Kilo' veya 'Net' yanındaki sayısal net ağırlık (Örn: 25.30, 22.10).\n"
+                    "- quality (Kalite Sınıfı): Etiketteki 'KALİTE' sınıfı (Genellikle '1'. Varsayılan: '1').\n"
+                    "- barcodeNumber (Barkod / Top No): Etiketteki barkod çizgisi altında yazan veya 'TOPNO'/'BARCODE' yanındaki kod (Örn: 100234, IRS-2026-00001).\n\n"
+                    "KURALLAR:\n"
                     f"{fabric_list_instruction}\n"
-                    "2. colorCode (Renk Kodu): Genellikle etiket üzerinde yer alan mavi daire çıkartmanın içindeki 'COLOR' yazısının hemen altındaki büyük sayıdır. KRİTİK KURAL: Renk kodu SADECE 1 ile 13 (dahil) arasındaki tam sayılar olabilir (Örn: 1, 2, 3, 10, 13). 13'ten büyük sayıları veya 3 haneli sayıları (Örn: 055) kesinlikle renk kodu olarak alma. Eğer bu aralıkta (1-13) geçerli bir sayı bulunamazsa boş string döndür.\n"
-                    "3. lengthM (Metre): Etiketin üst/yan kısmında dikey veya yatay olarak 'Mt' veya 'M' birimiyle yazan sayıyı al (Örn: 89.50, 73.90).\n"
-                    "4. netWeightKg (Net Ağırlık): Etikette 'Kg' veya 'KG' birimiyle yazan net ağırlık değerini al (Örn: 25.30, 27.70).\n"
-                    "5. quality (Kalite): Etikette kalite sınıfı belirtilmişse yaz (Varsayılan olarak '1').\n"
-                    "6. barcodeNumber (Barkod Numarası): Etiket üzerindeki barkod numarasını, top numarasını veya benzersiz referans kodunu al (Örn: 100234, IRS-2026-00001). Genellikle barkod çizgisinin altında veya etiket kenarında yer alır."
+                )
+
+            response = await model.generate_content_async(
+                [
+                    {"mime_type": "image/webp", "data": gemini_contents},
+                    instruction
                 ],
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
@@ -278,8 +319,8 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
             print(f"HATA: Gemini API analizi sirasinda hata olustu: {e}")
             print("FastAPI: Otomatik olarak PaddleOCR fallback moduna geciliyor...")
             
-    # Fallback durumunda orijinal veriyi byte olarak okumak için
-    nparr = np.frombuffer(contents, np.uint8)
+    # Fallback durumunda orijinal yüksek çözünürlüklü veriyi byte olarak okumak için
+    nparr = np.frombuffer(original_contents, np.uint8)
     img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     print("FastAPI: cv2 imdecode tamamlandi.")
     
@@ -323,44 +364,56 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
     
     # 1. Kumaş Adı Ayıklama
     detected_fabric = ""
-    for idx, text in enumerate(raw_texts):
-        clean_text = text.strip()
-        # İki nokta üst üste zorunlu olmayan esnek regex
-        if re.search(r'\b(?:KALİTE|KALITE|QUALITY|KUMAS|KUMAŞ|CUMAS|CUMAŞ)\b', clean_text, re.IGNORECASE) and not re.search(r'\bNO\b', clean_text, re.IGNORECASE):
-            val_match = re.search(r'(?:KALİTE|KALITE|QUALITY|KUMAS|KUMAŞ|CUMAS|CUMAŞ)\s*[:\-]?\s*([A-Za-zĞÜŞÖÇİğüşöçı\s]+)', clean_text, re.IGNORECASE)
-            if val_match and val_match.group(1).strip():
-                val = val_match.group(1).strip()
-                if not val.isdigit() and len(val) > 2:
-                    detected_fabric = val
-                    break
-            
-            # Alt satırlara bak (iki nokta üst üste alt satırda olabilir)
-            for offset in range(1, 4):
-                if idx + offset < len(raw_texts):
-                    next_line = raw_texts[idx + offset].strip()
-                    next_line_clean = re.sub(r'^[:\-\s]+', '', next_line).strip()
-                    if next_line_clean and not next_line_clean.isdigit():
-                        upper_line = next_line_clean.upper()
-                        if not any(kwd in upper_line for kwd in ["KALITE", "KALİTE", "COLOR", "COL", "RENK", "KUMAS", "KUMAŞ", "PARTI", "PARTİ", "TOPNO", "TOP NO", "TOP_NO", "NO", "MAMUL", "ISLETME", "İŞLETME"]):
-                            detected_fabric = next_line_clean
-                            break
-            if detected_fabric:
+    
+    # Eger user_fabrics tanımlıysa, önce okunan metinlerin içinde bu kumaş isimlerinden biri doğrudan geçiyor mu diye bakalım
+    if user_fabrics:
+        full_text_upper = full_text.upper()
+        sorted_user_fabrics = sorted(user_fabrics, key=len, reverse=True)
+        for fb in sorted_user_fabrics:
+            fb_upper = fb.upper().strip()
+            if fb_upper in full_text_upper:
+                detected_fabric = fb
                 break
                 
-    # Fallback Kumaş Adı
     if not detected_fabric:
-        for text in raw_texts:
-            clean = text.strip()
-            clean_alpha = re.sub(r'[^a-zA-ZğüşöçİĞÜŞÖÇ\s]', '', clean).strip()
-            if len(clean_alpha) >= 3:
-                upper_clean = clean.upper()
-                if not any(kwd in upper_clean for kwd in ["KALITE", "KALİTE", "COLOR", "COL", "RENK", "KUMAS", "KUMAŞ", "PARTI", "PARTİ", "TOPNO", "TOP NO", "TOP_NO", "NO", "MAMUL", "ISLETME", "İŞLETME", "EDILMEZ", "EDİLMEZ", "REKLAM", "MALDAN", "KESILEN", "KESİLEN", "MT", "KG", "KILO"]):
-                    if not re.search(r'\d', clean) and not any(u in upper_clean for u in ["MT", "KG", "KILO"]):
-                        detected_fabric = clean
+        for idx, text in enumerate(raw_texts):
+            clean_text = text.strip()
+            # İki nokta üst üste zorunlu olmayan esnek regex
+            if re.search(r'\b(?:KALİTE|KALITE|QUALITY|KUMAS|KUMAŞ|CUMAS|CUMAŞ)\b', clean_text, re.IGNORECASE) and not re.search(r'\bNO\b', clean_text, re.IGNORECASE):
+                val_match = re.search(r'(?:KALİTE|KALITE|QUALITY|KUMAS|KUMAŞ|CUMAS|CUMAŞ)\s*[:\-]?\s*([A-Za-zĞÜŞÖÇİğüşöçı\s]+)', clean_text, re.IGNORECASE)
+                if val_match and val_match.group(1).strip():
+                    val = val_match.group(1).strip()
+                    if not val.isdigit() and len(val) > 2 and val.upper() not in ["ADI", "KUMAS", "KUMAŞ", "CUMAS", "CUMAŞ", "KALITE", "KALİTE", "QUALITY", "KUMASADI", "KUMAŞADI", "KUMSADI", "LYCRA", "LCYRA", "LIKRA", "EN LYCRA", "ENLYCRA"]:
+                        detected_fabric = val
                         break
-                        
+                
+                # Alt satırlara bak (iki nokta üst üste alt satırda olabilir)
+                for offset in range(1, 4):
+                    if idx + offset < len(raw_texts):
+                        next_line = raw_texts[idx + offset].strip()
+                        next_line_clean = re.sub(r'^[:\-\s]+', '', next_line).strip()
+                        if next_line_clean and not next_line_clean.isdigit():
+                            upper_line = next_line_clean.upper()
+                            if not any(kwd in upper_line for kwd in ["KALITE", "KALİTE", "COLOR", "COL", "RENK", "KUMAS", "KUMAŞ", "PARTI", "PARTİ", "TOPNO", "TOP NO", "TOP_NO", "NO", "MAMUL", "ISLETME", "İŞLETME", "ADI", "KUMSADI", "LYCRA", "LCYRA", "LIKRA", "EN LYCRA", "ENLYCRA"]):
+                                detected_fabric = next_line_clean
+                                break
+                if detected_fabric:
+                    break
+                    
+        # Fallback Kumaş Adı
+        if not detected_fabric:
+            for text in raw_texts:
+                clean = text.strip()
+                clean_alpha = re.sub(r'[^a-zA-ZğüşöçİĞÜŞÖÇ\s]', '', clean).strip()
+                if len(clean_alpha) >= 3:
+                    upper_clean = clean.upper()
+                    if not any(kwd in upper_clean for kwd in ["KALITE", "KALİTE", "COLOR", "COL", "RENK", "KUMAS", "KUMAŞ", "PARTI", "PARTİ", "TOPNO", "TOP NO", "TOP_NO", "NO", "MAMUL", "ISLETME", "İŞLETME", "EDILMEZ", "EDİLMEZ", "REKLAM", "MALDAN", "KESILEN", "KESİLEN", "MT", "KG", "KILO", "ADI", "KUMSADI", "LYCRA", "LCYRA", "LIKRA", "EN LYCRA", "ENLYCRA"]):
+                        if not re.search(r'\d', clean) and not any(u in upper_clean for u in ["MT", "KG", "KILO"]):
+                            detected_fabric = clean
+                            break
+                            
     if detected_fabric:
-        detected_fabric = get_fuzzy_fabric_name(detected_fabric)
+        detected_fabric = get_fuzzy_fabric_name(detected_fabric, user_fabrics)
     
     # 2. Metre ve Ağırlık Ayıklama (Kelime sınırı \b olmadan)
     detected_length = 0.0
@@ -416,6 +469,10 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
                 for offset in range(1, 6):
                     if idx + offset < len(raw_texts):
                         next_line = raw_texts[idx + offset].strip()
+                        # Diğer etiket alanlarına geçildiyse aramayı durdur (örn: TOPNO, PARTINO)
+                        next_line_upper = next_line.upper()
+                        if any(hdr in next_line_upper for hdr in ["TOPNO", "TOP NO", "PARTI", "PARTİ", "MAMUL", "ISLETME", "İŞLETME", "KALITE", "KALİTE", "KUMAS", "KUMAŞ", "MT", "KG"]):
+                            break
                         if not re.search(r'\d', next_line) and len(re.sub(r'[^a-zA-Z]', '', next_line)) > 1:
                             continue
                         next_line_clean = re.sub(r'^[:.\s-]+', '', next_line).strip()
@@ -426,17 +483,21 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
                 if detected_color_num:
                     break
                     
-    # Fallback Renk Kodu: Metnin en başında duran 3 haneli bağımsız bir sayı varsa (Örn: 055)
+    # Fallback Renk Kodu: Metndeki bağımsız sayıları incele (Örn: 3, 4, 12, 055 vb.)
     if not detected_color_num:
-        # Metindeki tüm 2-3 haneli bağımsız sayıları bul (örn: '055')
-        numbers = re.findall(r'\b\d{2,3}\b', full_text)
+        # Metndeki tüm 1-3 haneli bağımsız sayıları bul
+        numbers = re.findall(r'\b\d{1,3}\b', full_text)
         for num in numbers:
             num_clean = num.strip()
-            # Bu sayı metre veya ağırlık veya top no olarak eşleşmemiş olsun
-            val_f = float(num_clean)
-            if val_f != detected_length and val_f != detected_weight and num_clean != "150" and num_clean != "1":
-                detected_color_num = num_clean
-                break
+            try:
+                val_f = float(num_clean)
+                if val_f != detected_length and val_f != detected_weight and num_clean != "150" and num_clean != "1":
+                    # Eğer 1-13 arası geçerli bir tam sayıysa veya 3 haneli bir renk koduysa kabul et
+                    if (1.0 <= val_f <= 13.0) or (100.0 <= val_f <= 999.0):
+                        detected_color_num = num_clean
+                        break
+            except ValueError:
+                continue
 
     # 4. Barkod Numarası Tespiti (Parti No veya Barkod)
     detected_barcode = ""
@@ -448,7 +509,7 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
         if irs_match:
             detected_barcode = irs_match.group(1).strip()
 
-    return {
+    res = {
         "fabricType": detected_fabric or "Bilinmeyen Kumaş",
         "lengthM": detected_length,
         "netWeightKg": detected_weight,
@@ -457,6 +518,8 @@ def do_ocr(file: UploadFile = File(...), fabric_types: Optional[str] = Form(None
         "barcodeNumber": detected_barcode,
         "rawText": full_text
     }
+    print("FastAPI: PaddleOCR Fallback Sonucu:", res)
+    return res
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

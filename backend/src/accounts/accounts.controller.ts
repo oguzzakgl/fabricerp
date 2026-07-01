@@ -66,6 +66,15 @@ export class AccountsController {
     return this.accountsService.findOne(id, tenantId);
   }
 
+  @Post(':id/payments')
+  createPayment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() paymentDto: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.accountsService.createPayment(id, paymentDto, tenantId);
+  }
+
   @Put(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,

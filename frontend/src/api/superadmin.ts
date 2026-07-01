@@ -20,6 +20,9 @@ export interface Tenant {
   taxNumber: string | null;
   iban: string | null;
   logoUrl: string | null;
+  geminiApiKey: string | null;
+  geminiPrompt: string | null;
+  plan: string;
   createdAt: string;
   users: TenantUser[];
 }
@@ -30,14 +33,16 @@ export interface SuperAdminUser {
   email: string;
   role: string;
   createdAt: string;
-  tenant: { name: string } | null;
+  plan: string;
+  tenant: { name: string; plan: string } | null;
 }
 
 export interface InviteCode {
   id: string;
   code: string;
+  plan: string;
   isUsed: boolean;
-  usedByEmail: string | null;
+  usedAt: string | null;
   createdAt: string;
 }
 
@@ -81,12 +86,16 @@ export const superAdminApi = {
   addUserToTenant: (tenantId: string, data: { name: string; email: string; password: string; role: string }): Promise<{ data: TenantUser }> =>
     apiClient.post(`/settings/super/tenants/${tenantId}/users`, data),
 
+  // Tenant settings (geminiApiKey etc.)
+  updateTenantSettings: (tenantId: string, data: { geminiApiKey: string; geminiPrompt?: string }): Promise<{ data: { success: boolean } }> =>
+    apiClient.patch(`/settings/super/tenants/${tenantId}/settings`, data),
+
   // Invites
   getInvites: (): Promise<{ data: InviteCode[] }> =>
     apiClient.get('/settings/super/invites'),
 
-  createInvite: (code: string): Promise<{ data: InviteCode }> =>
-    apiClient.post('/settings/super/invites', { code }),
+  createInvite: (code: string, plan: string): Promise<{ data: InviteCode }> =>
+    apiClient.post('/settings/super/invites', { code, plan }),
 
   deleteInvite: (id: string): Promise<{ data: unknown }> =>
     apiClient.delete(`/settings/super/invites/${id}`),

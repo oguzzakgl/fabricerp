@@ -11,6 +11,7 @@ const Users: React.FC = () => {
   const [newPwd, setNewPwd] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [planFilter, setPlanFilter] = useState<'ALL' | 'STARTER' | 'PRO' | 'ENTERPRISE'>('ALL');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,11 +81,12 @@ const Users: React.FC = () => {
     return map[role] || 'bg-gray-100 text-gray-600';
   };
 
-  const filtered = users.filter(u =>
-    (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase()) ||
-    (u.tenant?.name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = users.filter(u => {
+    if (planFilter !== 'ALL' && u.plan !== planFilter) return false;
+    return (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
+           u.email.toLowerCase().includes(search.toLowerCase()) ||
+           (u.tenant?.name || '').toLowerCase().includes(search.toLowerCase());
+  });
 
   if (loading) return (
     <div className="flex h-[70vh] items-center justify-center">
@@ -103,6 +105,49 @@ const Users: React.FC = () => {
         <p className="text-sm text-on-surface-variant">{filtered.length} kullanıcı</p>
       </div>
 
+      <div className="flex gap-2 border-b border-outline-variant pb-2 overflow-x-auto whitespace-nowrap scrollbar-thin">
+        <button
+          onClick={() => setPlanFilter('ALL')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            planFilter === 'ALL'
+              ? 'bg-secondary text-on-secondary shadow-sm'
+              : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant'
+          }`}
+        >
+          Tümü ({users.length})
+        </button>
+        <button
+          onClick={() => setPlanFilter('STARTER')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            planFilter === 'STARTER'
+              ? 'bg-secondary text-on-secondary shadow-sm'
+              : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant'
+          }`}
+        >
+          Atölye (Starter) ({users.filter(u => u.plan === 'STARTER').length})
+        </button>
+        <button
+          onClick={() => setPlanFilter('PRO')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            planFilter === 'PRO'
+              ? 'bg-secondary text-on-secondary shadow-sm'
+              : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant'
+          }`}
+        >
+          Fabrika (Pro) ({users.filter(u => u.plan === 'PRO').length})
+        </button>
+        <button
+          onClick={() => setPlanFilter('ENTERPRISE')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            planFilter === 'ENTERPRISE'
+              ? 'bg-secondary text-on-secondary shadow-sm'
+              : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant'
+          }`}
+        >
+          Kurumsal (Enterprise) ({users.filter(u => u.plan === 'ENTERPRISE').length})
+        </button>
+      </div>
+
       <div className="bg-white rounded-2xl border border-outline-variant shadow-xs overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -111,6 +156,7 @@ const Users: React.FC = () => {
               <th className="py-3 px-4">E-posta</th>
               <th className="py-3 px-4">Firma</th>
               <th className="py-3 px-4">Rol</th>
+              <th className="py-3 px-4">Paket / Plan</th>
               <th className="py-3 px-4">Kayıt Tarihi</th>
               <th className="py-3 px-4 text-right">İşlemler</th>
             </tr>
@@ -123,6 +169,11 @@ const Users: React.FC = () => {
                 <td className="py-3 px-4 font-semibold text-primary text-xs">{u.tenant?.name || 'Sistem Yöneticisi'}</td>
                 <td className="py-3 px-4">
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${roleBadge(u.role)}`}>{u.role}</span>
+                </td>
+                <td className="py-3 px-4">
+                  {u.plan === 'STARTER' && <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-semibold">Atölye (Starter)</span>}
+                  {u.plan === 'PRO' && <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-semibold">Fabrika (Pro)</span>}
+                  {u.plan === 'ENTERPRISE' && <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-[11px] font-semibold">Kurumsal (Enterprise)</span>}
                 </td>
                 <td className="py-3 px-4 text-xs text-on-surface-variant">{new Date(u.createdAt).toLocaleDateString('tr-TR')}</td>
                 <td className="py-3 px-4">
