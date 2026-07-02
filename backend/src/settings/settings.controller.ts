@@ -171,4 +171,17 @@ export class SettingsController {
       body,
     );
   }
+
+  @Post('cleanup')
+  cleanUpTenant(@TenantId() tenantId: string) {
+    return this.settingsService.cleanUpTenant(tenantId);
+  }
+
+  @Post('super/tenants/:tenantId/cleanup')
+  superCleanUpTenant(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+  ) {
+    return this.settingsService.superCleanUpTenant(req.user.userId, tenantId);
+  }
 }

@@ -628,4 +628,75 @@ export class SettingsService {
     });
     return { success: true };
   }
+
+  async cleanUpTenant(tenantId: string) {
+    if (!tenantId) {
+      throw new BadRequestException('Kiracı kimliği geçersiz.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Finansal işlemler
+      await tx.financialTransaction.deleteMany({
+        where: { tenantId },
+      });
+
+      // 2. Faturalar
+      await tx.invoice.deleteMany({
+        where: { tenantId },
+      });
+
+      // 3. İrsaliyeler
+      await tx.waybill.deleteMany({
+        where: { tenantId },
+      });
+
+      // 4. Sipariş Satırları ve Siparişler
+      await tx.orderItem.deleteMany({
+        where: { order: { tenantId } },
+      });
+
+      await tx.order.deleteMany({
+        where: { tenantId },
+      });
+
+      // 5. Kumaş Topları
+      await tx.roll.deleteMany({
+        where: { tenantId },
+      });
+
+      // 6. İplik Stokları
+      await tx.yarnStock.deleteMany({
+        where: { tenantId },
+      });
+
+      // 7. Kumaş Kartelaları
+      await tx.fabricCard.deleteMany({
+        where: { tenantId },
+      });
+
+      // 8. Cari Hesaplar
+      await tx.account.deleteMany({
+        where: { tenantId },
+      });
+    });
+
+    return {
+      success: true,
+      message: 'Kiracı verileri ilişkisel bütünlük korunarak başarıyla temizlendi.',
+    };
+  }
+
+  async superCleanUpTenant(activeUserId: string, tenantId: string) {
+    const activeUser = await this.prisma.user.findUnique({
+      where: { id: activeUserId },
+    });
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
+      throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
+    }
+    return this.cleanUpTenant(tenantId);
+  }
 }
