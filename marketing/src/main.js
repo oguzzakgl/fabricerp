@@ -73,6 +73,11 @@ function getNavbarHtml() {
 // Landing Page View
 // ----------------------------------------------------
 function renderLanding() {
+  // Dynamic SEO for landing page
+  document.title = 'Fabricore — Tekstil Stok, Ön Muhasebe ve Sipariş Yönetim Programı';
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) metaDesc.setAttribute('content', 'Fabricore, tekstil fabrikaları için iplik stok takip, kumaş envanteri, ön muhasebe, gelir gider yönetimi ve yapay zeka destekli OCR etiket okuma sunan bulut tabanlı ERP platformudur.');
+
   const app = document.getElementById('app');
   app.innerHTML = `
     ${getNavbarHtml()}
@@ -80,9 +85,9 @@ function renderLanding() {
     <!-- Hero Section -->
     <div class="hero-section">
       <div class="hero-tag">Fabricore SaaS Çözümü v1.2</div>
-      <h1 class="hero-title">Kumaş Fabrikanız İçin Akıllı Dijital Kontrol Paneli</h1>
+      <h1 class="hero-title">Tekstil Fabrikası İçin Stok, Ön Muhasebe ve Sipariş Yönetim Programı</h1>
       <p class="hero-subtitle text-secondary">
-        Cari hesap bakiyeleri, lot bazlı iplik stokları, kumaş topları, yapay zeka destekli OCR etiket okuma ve entegre finansal süreçleriniz tek bir modern SaaS platformunda.
+        İplik stok takibi, kumaş envanteri, cari hesap yönetimi, gelir gider analizi ve yapay zeka destekli OCR etiket okuma — tüm tekstil üretim süreçleriniz tek bir modern SaaS platformunda.
       </p>
       <div class="hero-actions">
         <a href="/register" data-link class="btn btn-accent btn-lg">Ücretsiz Denemeye Başla</a>
@@ -165,39 +170,39 @@ function renderLanding() {
     <!-- Core Features Grid -->
     <div id="features" class="section-title-container max-width-container">
       <h2 class="section-title">Temel Özellikler</h2>
-      <p class="section-subtitle">Fabricore, tekstil üreticilerinin tüm iş akışlarını tek bir çatı altında toplar.</p>
+      <p class="section-subtitle">Fabricore, tekstil üreticilerinin tüm iş akışlarını — stok takipten ön muhasebeye, gelir giderden sipariş yönetimine — tek bir çatı altında toplar.</p>
     </div>
     
     <div class="features-grid max-width-container">
       <div class="glass-card feature-card">
         <div class="feature-icon"><span class="material-symbols-outlined">group</span></div>
-        <h3>Cari Hesap Yönetimi</h3>
-        <p>Müşteri ve tedarikçilerinizi borç/alacak takipleriyle birlikte kurumsal düzeyde yönetin.</p>
+        <h3>Cari Hesap &amp; Ön Muhasebe Yönetimi</h3>
+        <p>Müşteri ve tedarikçilerinizin borç/alacak bakiyelerini çoklu para birimiyle yönetin. Tekstil ön muhasebe ihtiyaçlarınız için eksiksiz çözüm.</p>
       </div>
       <div class="glass-card feature-card">
         <div class="feature-icon"><span class="material-symbols-outlined">inventory_2</span></div>
-        <h3>İplik Envanteri</h3>
-        <p>Lot numaraları, kg miktarları, tedarikçileri ve birim fiyatları detaylarıyla iplik stoklarını izleyin.</p>
+        <h3>İplik Stok &amp; Lot Takip Sistemi</h3>
+        <p>Lot numaraları, kg miktarları, tedarikçiler ve birim fiyatlarıyla iplik stoklarınızı anlık olarak izleyin. Kritik stok uyarıları alın.</p>
       </div>
       <div class="glass-card feature-card">
         <div class="feature-icon"><span class="material-symbols-outlined">layers</span></div>
-        <h3>Kumaş Topları</h3>
-        <p>Üretim reçeteleriyle otomatik maliyet hesabı yapılmış kumaş toplarını yönetin.</p>
+        <h3>Kumaş Topu Envanter Yönetimi</h3>
+        <p>Üretim reçeteleriyle otomatik maliyet hesabı yapılmış kumaş toplarını yönetin. Top bazlı stok takibini kolaylaştırın.</p>
       </div>
       <div class="glass-card feature-card">
         <div class="feature-icon"><span class="material-symbols-outlined">shopping_cart</span></div>
-        <h3>Sipariş Takibi</h3>
-        <p>Envanterdeki kumaşları rezerve ederek siparişleri onaylayın, iptal edin veya sevk edin.</p>
+        <h3>Sipariş Takibi &amp; Sevkiyat</h3>
+        <p>Envanterdeki kumaşları rezerve ederek siparişleri onaylayın, iptal edin veya sevk edin. Müşteri bazlı sipariş geçmişini takip edin.</p>
       </div>
       <div class="glass-card feature-card">
         <div class="feature-icon"><span class="material-symbols-outlined">receipt_long</span></div>
-        <h3>Faturalandırma</h3>
-        <p>Siparişlerden otomatik fatura oluşturun ve vergi dairesi/no entegrasyonuyla resmi dökümler alın.</p>
+        <h3>Faturalandırma &amp; Fatura Yönetimi</h3>
+        <p>Siparişlerden otomatik fatura oluşturun. Vergi dairesi ve vergi numarası entegrasyonuyla resmi belgelerinizi dijital ortamda saklayın.</p>
       </div>
       <div class="glass-card feature-card">
         <div class="feature-icon"><span class="material-symbols-outlined">account_balance_wallet</span></div>
-        <h3>Finans (Çek/Senet)</h3>
-        <p>Kasa, banka, çek ve senet hareketlerinizi tahsil, ödeme ve ciro durumlarıyla kontrol edin.</p>
+        <h3>Gelir Gider &amp; Finans Takibi</h3>
+        <p>Kasa, banka, çek ve senet hareketlerinizi gelir gider raporlarıyla takip edin. Tahsil, ödeme ve ciro durumlarını gerçek zamanlı görün.</p>
       </div>
     </div>
 
@@ -216,7 +221,7 @@ function renderLanding() {
           </p>
         </div>
         <div class="tab-image-side">
-          <img id="tab-content-image" src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80" alt="Fabric OCR Scanner" />
+          <img id="tab-content-image" src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80" alt="Tekstil kumaş etiket OCR tarama sistemi" />
         </div>
       </div>
     </div>
@@ -320,21 +325,31 @@ function renderLanding() {
       <div class="faq-accordion">
         <div class="faq-item glass-card active">
           <div class="faq-header">
-            <h4>Yapay Zeka Destekli OCR nasıl çalışır?</h4>
+            <h4>Tekstil fabrikam için iplik ve kumaş stok takibini nasıl yapabilirim?</h4>
             <span class="material-symbols-outlined toggle-icon">expand_more</span>
           </div>
           <div class="faq-body">
-            <p>Akıllı telefon kameranızla veya sisteme yükleyeceğiniz etiket görselleriyle tarama yapabilirsiniz. Gemini yapay zeka modülü, etiket üzerindeki metinleri analiz ederek kumaş türünü, net metrajını, kilogram ağırlığını ve lot kodunu otomatik olarak ayrıştırıp sisteme kaydeder.</p>
+            <p>Fabricore'da iplik stoklarınızı lot numarası, kg miktarı, renk ve tedarikçi bazında kayıt altına alabilirsiniz. Kumaş toplarınızı ise top numarası, metraj ve reçete bilgileriyle yönetebilirsiniz. Kritik stok seviyesi uyarıları sayesinde stoğunuz bitmeden haberdar olursunuz.</p>
           </div>
         </div>
 
         <div class="faq-item glass-card">
           <div class="faq-header">
-            <h4>Çoklu para birimli bakiye hesaplaması nasıl çalışıyor?</h4>
+            <h4>Tekstil işletmem için ön muhasebe ve gelir gider takibini nasıl yaparım?</h4>
             <span class="material-symbols-outlined toggle-icon">expand_more</span>
           </div>
           <div class="faq-body">
-            <p>Her cari hesabın (müşteri veya tedarikçi) varsayılan bir para birimi (TRY, USD, EUR) bulunur. Farklı para birimleriyle ödeme alındığında sistem o günkü canlı döviz kurunu çeker ve ödemeyi otomatik olarak carinin varsayılan para birimine çevirerek borcundan düşer.</p>
+            <p>Fabricore'un ön muhasebe modülü; müşteri alacakları, tedarikçi borçları, çek/senet takibi ve kasa/banka hareketlerini kapsar. Gelir gider raporlarınızı tarih aralığına göre filtreleyerek anlık finansal durumunuzu görebilirsiniz. TRY, USD ve EUR cinsinden çoklu para birimi desteği mevcuttur.</p>
+          </div>
+        </div>
+
+        <div class="faq-item glass-card">
+          <div class="faq-header">
+            <h4>Yapay Zeka Destekli OCR etiket okuma nasıl çalışır?</h4>
+            <span class="material-symbols-outlined toggle-icon">expand_more</span>
+          </div>
+          <div class="faq-body">
+            <p>Akıllı telefon kameranızla veya sisteme yükleyeceğiniz etiket görselleriyle tarama yapabilirsiniz. Gemini yapay zeka modülü, etiket üzerindeki metinleri analiz ederek kumaş türünü, net metrajını, kilogram ağırlığını ve lot kodunu otomatik olarak ayrıştırıp sisteme kaydeder. Manuel veri girişi hatalarını sıfıra indirir.</p>
           </div>
         </div>
 
@@ -487,6 +502,10 @@ function renderLanding() {
 // Registration View
 // ----------------------------------------------------
 function renderRegister() {
+  // Dynamic SEO for register page
+  document.title = 'Kayıt Ol — Fabricore Tekstil Stok ve Muhasebe Programı';
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) metaDesc.setAttribute('content', 'Fabricore\'a ücretsiz kaydolun. Tekstil fabrikası stok takip, ön muhasebe ve sipariş yönetim sistemine hemen başlayın.');
   const app = document.getElementById('app');
   app.innerHTML = `
     ${getNavbarHtml()}
@@ -759,6 +778,10 @@ function renderLogin() {
 // Contact View
 // ----------------------------------------------------
 function renderContact() {
+  // Dynamic SEO for contact page
+  document.title = 'İletişim — Fabricore Tekstil ERP Yazılımı';
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) metaDesc.setAttribute('content', 'Fabricore hakkında bilgi almak veya Enterprise çözümler için bizimle iletişime geçin.');
   const app = document.getElementById('app');
   app.innerHTML = `
     ${getNavbarHtml()}
