@@ -129,7 +129,7 @@ model OrderItem {
   id         String   @id @default(uuid()) @db.Uuid
   orderId    String   @map("order_id") @db.Uuid
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  rollId     String   @unique @map("roll_id") @db.Uuid // unique: bir top yalnız bir siparişte
+  rollId     String   @map("roll_id") @db.Uuid
   roll       Roll     @relation(fields: [rollId], references: [id])
   unitPrice  Decimal  @map("unit_price") @db.Decimal(10, 2)
   createdAt  DateTime @default(now()) @map("created_at")
