@@ -81,7 +81,7 @@ export class SettingsService {
         taxOffice: '',
         taxNumber: '',
         phone: '',
-        email: 'admin@fabricerp.com',
+        email: 'admin@fabricore.com',
         address: '',
         iban: '',
         logoUrl: '',

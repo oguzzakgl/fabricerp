@@ -19,7 +19,7 @@ async function main() {
     await prisma.$connect();
 
     // Superadmin credentials - you can modify these
-    const email = 'superadmin@fabricerp.com';
+    const email = 'superadmin@fabricore.com';
     const password = 'SuperAdmin123!'; // Change this to a secure password
     const name = 'Super Admin';
 

@@ -95,7 +95,7 @@ const Register: React.FC = () => {
             </span>
           </div>
           <h2 className="mt-6 text-center text-ust-baslik-md font-bold text-on-surface">
-            FabricERP'e Ücretsiz Kaydolun
+            Fabricore'a Ücretsiz Kaydolun
           </h2>
           <p className="mt-2 text-center text-govde-metin text-on-surface-variant">
             Tekstil Üretim Kontrol Paneli

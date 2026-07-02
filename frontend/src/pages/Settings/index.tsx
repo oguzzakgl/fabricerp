@@ -226,7 +226,7 @@ const Settings: React.FC = () => {
                       type="text"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="Örn: FabricERP Tekstil San. Tic. A.Ş."
+                      placeholder="Örn: Fabricore Tekstil San. Tic. A.Ş."
                       className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant rounded text-on-surface focus:ring-1 focus:ring-secondary outline-none"
                     />
                   </div>

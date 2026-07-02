@@ -37,7 +37,7 @@ export class MailService {
   }
 
   async sendMail(to: string, subject: string, html: string): Promise<boolean> {
-    const from = process.env.SMTP_FROM || 'no-reply@fabricerp.com';
+    const from = process.env.SMTP_FROM || 'no-reply@fabricore.com';
 
     this.logger.log(`Attempting to send email to: ${to} | Subject: ${subject}`);
 
@@ -72,8 +72,8 @@ ${html}
     adminEmail: string,
   ) {
     const adminNotificationEmail =
-      process.env.ADMIN_NOTIFICATION_EMAIL || 'info@fabricerp.com';
-    const subject = 'Yeni Üye Kaydı Bildirimi - FabricERP';
+      process.env.ADMIN_NOTIFICATION_EMAIL || 'info@fabricore.com';
+    const subject = 'Yeni Üye Kaydı Bildirimi - fabricore';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
         <h2 style="color: #10b981; border-bottom: 2px solid #10b981; padding-bottom: 10px;">Yeni Üye Kaydı</h2>
@@ -92,7 +92,7 @@ ${html}
             <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${new Date().toLocaleString('tr-TR')}</td>
           </tr>
         </table>
-        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta FabricERP sistemi tarafından otomatik olarak gönderilmiştir.</p>
+        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta fabricore sistemi tarafından otomatik olarak gönderilmiştir.</p>
       </div>
     `;
 

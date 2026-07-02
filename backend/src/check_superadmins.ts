@@ -30,10 +30,10 @@ async function main() {
 
     if (superadmins.length > 1) {
       console.log('\n⚠️  Multiple superadmin accounts found!');
-      console.log('Keeping only superadmin@fabricerp.com, deleting others...');
+      console.log('Keeping only superadmin@fabricore.com, deleting others...');
 
       for (const admin of superadmins) {
-        if (admin.email !== 'superadmin@fabricerp.com') {
+        if (admin.email !== 'superadmin@fabricore.com') {
           await prisma.user.delete({
             where: { email: admin.email },
           });
@@ -42,7 +42,7 @@ async function main() {
       }
 
       console.log(
-        '\n✓ Cleanup complete. Only superadmin@fabricerp.com remains.',
+        '\n✓ Cleanup complete. Only superadmin@fabricore.com remains.',
       );
     } else if (superadmins.length === 1) {
       console.log('\n✓ Only one superadmin account exists.');

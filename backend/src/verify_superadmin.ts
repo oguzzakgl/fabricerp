@@ -18,7 +18,7 @@ async function main() {
   try {
     await prisma.$connect();
 
-    const email = 'superadmin@fabricerp.com';
+    const email = 'superadmin@fabricore.com';
     const password = 'SuperAdmin123!';
 
     const user = await prisma.user.findUnique({

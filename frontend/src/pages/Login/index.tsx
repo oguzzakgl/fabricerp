@@ -103,7 +103,7 @@ const Login: React.FC = () => {
             style={{ fontFamily: "'Outfit', 'Inter', sans-serif", color: '#f8fafc' }}
             className="mt-6 text-center text-ust-baslik-md font-bold"
           >
-            FabricERP Hesabınıza Giriş Yapın
+            Fabricore Hesabınıza Giriş Yapın
           </h2>
           <p 
             style={{ color: '#94a3b8' }}

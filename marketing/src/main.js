@@ -57,7 +57,7 @@ function getNavbarHtml() {
     <nav class="navbar">
       <a href="/" data-link class="logo">
         <span class="material-symbols-outlined icon">layers</span>
-        <span>FabricERP</span>
+        <span>Fabricore</span>
       </a>
       <div class="nav-links">
         <a href="#features">Özellikler</a>
@@ -79,7 +79,7 @@ function renderLanding() {
     
     <!-- Hero Section -->
     <div class="hero-section">
-      <div class="hero-tag">FabricERP SaaS Çözümü v1.2</div>
+      <div class="hero-tag">Fabricore SaaS Çözümü v1.2</div>
       <h1 class="hero-title">Kumaş Fabrikanız İçin Akıllı Dijital Kontrol Paneli</h1>
       <p class="hero-subtitle text-secondary">
         Cari hesap bakiyeleri, lot bazlı iplik stokları, kumaş topları, yapay zeka destekli OCR etiket okuma ve entegre finansal süreçleriniz tek bir modern SaaS platformunda.
@@ -99,11 +99,11 @@ function renderLanding() {
             <span class="dot yellow"></span>
             <span class="dot green"></span>
           </div>
-          <div class="address-bar">https://app.fabricerp.com/dashboard</div>
+          <div class="address-bar">https://app.Fabricore.com/dashboard</div>
         </div>
         <div class="mockup-app-layout">
           <aside class="mockup-sidebar">
-            <div class="sidebar-logo"><span class="material-symbols-outlined text-accent">layers</span> FabricERP</div>
+            <div class="sidebar-logo"><span class="material-symbols-outlined text-accent">layers</span> Fabricore</div>
             <div class="sidebar-item active"><span class="material-symbols-outlined text-sm">dashboard</span> Panel</div>
             <div class="sidebar-item"><span class="material-symbols-outlined text-sm">group</span> Cari Hesaplar</div>
             <div class="sidebar-item"><span class="material-symbols-outlined text-sm">inventory_2</span> İplik Envanteri</div>
@@ -165,7 +165,7 @@ function renderLanding() {
     <!-- Core Features Grid -->
     <div id="features" class="section-title-container max-width-container">
       <h2 class="section-title">Temel Özellikler</h2>
-      <p class="section-subtitle">FabricERP, tekstil üreticilerinin tüm iş akışlarını tek bir çatı altında toplar.</p>
+      <p class="section-subtitle">Fabricore, tekstil üreticilerinin tüm iş akışlarını tek bir çatı altında toplar.</p>
     </div>
     
     <div class="features-grid max-width-container">
@@ -360,8 +360,8 @@ function renderLanding() {
     <!-- Footer Component -->
     <footer class="footer max-width-container">
       <div class="footer-bottom">
-        <span class="footer-logo"><span class="material-symbols-outlined text-accent">layers</span> FabricERP</span>
-        <p>&copy; 2026 FabricERP. Tüm Hakları Saklıdır.</p>
+        <span class="footer-logo"><span class="material-symbols-outlined text-accent">layers</span> Fabricore</span>
+        <p>&copy; 2026 Fabricore. Tüm Hakları Saklıdır.</p>
       </div>
     </footer>
   `;
@@ -494,7 +494,7 @@ function renderRegister() {
       <div class="glass-card auth-card">
         <div class="auth-header">
           <h2>Hemen Ücretsiz Katılın</h2>
-          <p>FabricERP SaaS hesabı açın ve fabrikanızı dijitalleştirin</p>
+          <p>Fabricore SaaS hesabı açın ve fabrikanızı dijitalleştirin</p>
         </div>
         
         <div id="alert-box"></div>
@@ -668,7 +668,7 @@ function renderLogin() {
       <div class="glass-card auth-card">
         <div class="auth-header">
           <h2>Yönetici Girişi</h2>
-          <p>FabricERP paneline erişmek için oturum açın</p>
+          <p>Fabricore paneline erişmek için oturum açın</p>
         </div>
         
         <div id="alert-box"></div>
@@ -767,7 +767,7 @@ function renderContact() {
         <div class="auth-header" style="margin-bottom: 2rem;">
           <span class="material-symbols-outlined text-accent" style="font-size: 3.5rem; margin-bottom: 1rem;">contact_support</span>
           <h2>Bizimle İletişime Geçin</h2>
-          <p>FabricERP Enterprise çözümleri veya her türlü sorunuz için bizimle doğrudan iletişime geçebilirsiniz.</p>
+          <p>Fabricore Enterprise çözümleri veya her türlü sorunuz için bizimle doğrudan iletişime geçebilirsiniz.</p>
         </div>
         
         <div style="display: flex; flex-direction: column; gap: 1.5rem; text-align: left; margin-top: 1.5rem; border-top: 1px solid var(--surface-border); padding-top: 2rem;">

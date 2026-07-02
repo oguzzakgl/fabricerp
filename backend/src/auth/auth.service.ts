@@ -173,8 +173,8 @@ export class AuthService {
 
     // Kayıt bildirim maili gönder (Asenkron)
     const adminNotificationEmail =
-      process.env.ADMIN_NOTIFICATION_EMAIL || 'info@fabricerp.com';
-    const subject = 'Yeni Kullanıcı Kaydı Bildirimi - FabricERP';
+      process.env.ADMIN_NOTIFICATION_EMAIL || 'info@fabricore.com';
+    const subject = 'Yeni Kullanıcı Kaydı Bildirimi - fabricore';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
         <h2 style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">Yeni Kullanıcı Kaydoldu</h2>
@@ -193,7 +193,7 @@ export class AuthService {
             <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${new Date().toLocaleString('tr-TR')}</td>
           </tr>
         </table>
-        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta FabricERP sistemi tarafından otomatik olarak gönderilmiştir.</p>
+        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta fabricore sistemi tarafından otomatik olarak gönderilmiştir.</p>
       </div>
     `;
     this.mailService
@@ -354,8 +354,8 @@ export class AuthService {
 
     // Firma kurulum/onboarding bildirim maili gönder (Asenkron)
     const adminNotificationEmail =
-      process.env.ADMIN_NOTIFICATION_EMAIL || 'info@fabricerp.com';
-    const completeSubject = 'Yeni Firma Kurulumu Bildirimi - FabricERP';
+      process.env.ADMIN_NOTIFICATION_EMAIL || 'info@fabricore.com';
+    const completeSubject = 'Yeni Firma Kurulumu Bildirimi - fabricore';
     const completeHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
         <h2 style="color: #10b981; border-bottom: 2px solid #10b981; padding-bottom: 10px;">Yeni Firma Kuruldu</h2>
@@ -378,7 +378,7 @@ export class AuthService {
             <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${new Date().toLocaleString('tr-TR')}</td>
           </tr>
         </table>
-        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta FabricERP sistemi tarafından otomatik olarak gönderilmiştir.</p>
+        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta fabricore sistemi tarafından otomatik olarak gönderilmiştir.</p>
       </div>
     `;
     this.mailService
@@ -409,7 +409,7 @@ export class AuthService {
 
     const adminNotificationEmail =
       process.env.ADMIN_NOTIFICATION_EMAIL || 'kaanakgl1907@gmail.com';
-    const subject = 'Davet Kodu Talebi - FabricERP';
+    const subject = 'Davet Kodu Talebi - fabricore';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
         <h2 style="color: #f59e0b; border-bottom: 2px solid #f59e0b; padding-bottom: 10px;">Yeni Davet Kodu Talebi</h2>
@@ -423,7 +423,7 @@ export class AuthService {
           <li><strong>Davet Kodları</strong> sekmesinden yeni bir kod oluşturun.</li>
           <li>Oluşturduğunuz kodu bu e-posta adresine yanıt vererek veya doğrudan ileterek gönderin.</li>
         </ol>
-        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta FabricERP sistemi tarafından otomatik olarak gönderilmiştir.</p>
+        <p style="margin-top: 20px; font-size: 12px; color: #888;">Bu e-posta fabricore sistemi tarafından otomatik olarak gönderilmiştir.</p>
       </div>
     `;
 

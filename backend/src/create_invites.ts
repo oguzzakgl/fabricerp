@@ -41,7 +41,7 @@ async function main() {
   }
 
   // 2. Hazır Giriş Yapılabilecek Admin Kullanıcısı Oluştur
-  const adminEmail = 'admin@fabricerp.com';
+  const adminEmail = 'admin@fabricore.com';
   const adminPassword = 'admin123';
   try {
     const existingUser = await prisma.user.findUnique({
