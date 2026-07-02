@@ -1008,8 +1008,11 @@ const Orders: React.FC = () => {
                             type="number"
                             min="0"
                             step="0.01"
-                            value={item.unitPrice}
-                            onChange={(e) => handleUpdateItemPrice(item.id, Number(e.target.value))}
+                            value={item.unitPrice || 0}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              handleUpdateItemPrice(item.id, isNaN(val) ? 0 : val);
+                            }}
                             className="w-24 bg-arka-plan-gri border border-outline-variant rounded p-1 text-right font-semibold"
                           />
                         </td>
