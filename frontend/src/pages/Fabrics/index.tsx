@@ -40,6 +40,13 @@ interface FabricCard {
   colorMapping?: Record<string, string> | null;
 }
 
+interface OcrAccount {
+  id: string;
+  code: string;
+  name: string;
+  ocrPrompt?: string;
+}
+
 interface GroupedFabric {
   fabricType: string;
   code: string;
@@ -93,7 +100,7 @@ const Fabrics: React.FC = () => {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [detectedData, setDetectedData] = useState<OcrRecord | null>(null);
   const [fabricCardsMap, setFabricCardsMap] = useState<Record<string, FabricCard>>({});
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<OcrAccount[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [colorModalOpen, setColorModalOpen] = useState(false);
   const [selectedFabricForColor, setSelectedFabricForColor] = useState<string>('');
@@ -200,14 +207,6 @@ const Fabrics: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (ocrModalOpen) {
-      void fetchAccountsForOcr();
-    } else {
-      setSelectedCustomerId('');
-    }
-  }, [ocrModalOpen, fetchAccountsForOcr]);
-
-  useEffect(() => {
     let active = true;
     const loadData = async () => {
       if (active) {
@@ -228,12 +227,13 @@ const Fabrics: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('scan') === 'true') {
       const timer = setTimeout(() => {
+        void fetchAccountsForOcr();
         setOcrModalOpen(true);
         window.history.replaceState({}, document.title, window.location.pathname);
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [fetchAccountsForOcr]);
 
   const handleUploadCardImage = async (fabricType: string, file: File) => {
     const formData = new FormData();
@@ -1372,6 +1372,7 @@ const Fabrics: React.FC = () => {
             <button 
               onClick={() => {
                 setPresetFabricName(null);
+                void fetchAccountsForOcr();
                 setOcrModalOpen(true);
                 setOcrFabricName('');
                 setScanLogs([]);
@@ -1450,6 +1451,7 @@ const Fabrics: React.FC = () => {
                           e.stopPropagation();
                           setPresetFabricName(fabric.fabricType);
                           setOcrFabricName(fabric.fabricType);
+                          void fetchAccountsForOcr();
                           setOcrModalOpen(true);
                           setScanLogs([]);
                           setDetectedData(null);
@@ -2052,6 +2054,7 @@ const Fabrics: React.FC = () => {
                   stopCamera();
                   setPresetFabricName(null);
                   setOcrModalOpen(false);
+                  setSelectedCustomerId('');
                 }}
               >
                 <span className="material-symbols-outlined">close</span>
