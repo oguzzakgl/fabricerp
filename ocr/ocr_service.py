@@ -298,7 +298,12 @@ async def do_ocr(
                 # Kullanıcı kendi promptunu yazmış olsa dahi 1 ve 7 kuralını zorla ekleyelim
                 instruction += (
                     "\nÖNEMLİ SAYISAL DOĞRULUK KURALI: Sayısal alanları (metraj, ağırlık, renk kodu, barkod vb.) okurken '1' (bir) ve '7' (yedi) rakamlarını birbirine karıştırma! "
-                    "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap."
+                    "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap. "
+                    "ÖNEMLİ RENK/DAİRE KURALI: Etiket üzerinde dairesel bir renk çıkartması/etiketi bulunur. "
+                    "Eğer okuduğun sayı 1 veya 7 ise, bu dairenin rengine bakarak doğrula:\n"
+                    "- Eğer bu yuvarlak çıkartmanın arka plan rengi MOR ise, sayı kesinlikle 7'dir.\n"
+                    "- Eğer bu yuvarlak çıkartmanın arka plan rengi AÇIK MAVİ ise, sayı kesinlikle 1'dir.\n"
+                    "Görseldeki dairenin rengini inceleyerek mor daireyi 7, açık mavi daireyi 1 olarak tanı."
                 )
                 if fabric_list_instruction:
                     instruction += f"\n{fabric_list_instruction}"
@@ -311,6 +316,11 @@ async def do_ocr(
                     "Not: Görsel yamuk, açılı, ters dönmüş veya ışık yansıması nedeniyle parlamış/gölgeli olabilir. Resmi zihinsel olarak döndürerek ve parlama/gölgeleri yok sayarak dikkatlice oku. "
                     "ÖNEMLİ SAYISAL DOĞRULUK KURALI: Sayısal alanları (metraj, ağırlık, renk kodu, barkod vb.) okurken '1' (bir) ve '7' (yedi) rakamlarını birbirine karıştırma! "
                     "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap. "
+                    "ÖNEMLİ RENK/DAİRE KURALI: Etiket üzerinde dairesel bir renk çıkartması/etiketi bulunur. "
+                    "Eğer okuduğun sayı 1 veya 7 ise, bu dairenin rengine bakarak doğrula:\n"
+                    "- Eğer bu yuvarlak çıkartmanın arka plan rengi MOR ise, sayı kesinlikle 7'dir.\n"
+                    "- Eğer bu yuvarlak çıkartmanın arka plan rengi AÇIK MAVİ ise, sayı kesinlikle 1'dir.\n"
+                    "Görseldeki dairenin rengini inceleyerek mor daireyi 7, açık mavi daireyi 1 olarak tanı. "
                     f"{color_list_instruction}"
                     f"{fabric_list_instruction}"
                 )
@@ -655,7 +665,12 @@ async def do_ocr_yarn(
                 # Kullanıcı kendi promptunu yazmış olsa dahi 1 ve 7 kuralını ekleyelim
                 instruction += (
                     "\nÖNEMLİ SAYISAL DOĞRULUK KURALI: Sayısal alanları (kg, lot no, iplik no, renk kodu vb.) okurken '1' (bir) ve '7' (yedi) rakamlarını birbirine karıştırma! "
-                    "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap."
+                    "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap. "
+                    "ÖNEMLİ RENK/DAİRE KURALI: Etiket üzerinde dairesel bir renk çıkartması/etiketi bulunur. "
+                    "Eğer okuduğun sayı 1 veya 7 ise, bu dairenin rengine bakarak doğrula:\n"
+                    "- Eğer bu yuvarlak çıkartmanın arka plan rengi MOR ise, sayı kesinlikle 7'dir.\n"
+                    "- Eğer bu yuvarlak çıkartmanın arka plan rengi AÇIK MAVİ ise, sayı kesinlikle 1'dir.\n"
+                    "Görseldeki dairenin rengini inceleyerek mor daireyi 7, açık mavi daireyi 1 olarak tanı."
                 )
                 if color_list_instruction:
                     instruction += f"\n{color_list_instruction}"
@@ -666,6 +681,11 @@ async def do_ocr_yarn(
                     "Not: Görsel tepe açılı veya ışık yansıması nedeniyle gölgeli olabilir. "
                     "ÖNEMLİ SAYISAL DOĞRULUK KURALI: Sayısal alanları (kg, lot no, iplik no, renk kodu vb.) okurken '1' (bir) ve '7' (yedi) rakamlarını birbirine karıştırma! "
                     "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap. "
+                    "ÖNEMLİ RENK/DAİRE KURALI: Etiket üzerinde dairesel bir renk çıkartması/etiketi bulunur. "
+                    "Eğer okuduğun sayı 1 veya 7 ise, bu dairenin rengine bakarak doğrula:\n"
+                    "- Eğer bu yuvarlak çıkartmanın arka plan rengi MOR ise, sayı kesinlikle 7'dir.\n"
+                    "- Eğer bu yuvarlak çıkartmanın arka plan rengi AÇIK MAVİ ise, sayı kesinlikle 1'dir.\n"
+                    "Görseldeki dairenin rengini inceleyerek mor daireyi 7, açık mavi daireyi 1 olarak tanı. "
                     f"{color_list_instruction}"
                 )
 
