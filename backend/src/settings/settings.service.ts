@@ -682,7 +682,8 @@ export class SettingsService {
 
     return {
       success: true,
-      message: 'Kiracı verileri ilişkisel bütünlük korunarak başarıyla temizlendi.',
+      message:
+        'Kiracı verileri ilişkisel bütünlük korunarak başarıyla temizlendi.',
     };
   }
 
