@@ -237,26 +237,14 @@ async def do_ocr(
         nparr = np.frombuffer(original_contents, np.uint8)
         img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img_np is not None:
-            # 1. Genişliği maksimum 500px yap (Okuma kalitesini bozmadan veri boyutunu minimize eder)
-            img_resized = resize_if_needed(img_np, target_width=500)
-            
-            # 2. Ön İşleme (Gama Düzeltme + Grayscale + Kontrast Artırımı + Keskinleştirme)
-            # Gama düzeltmesi (parlama ve yansımaları engellemek için)
-            img_gamma = apply_gamma_correction(img_resized, gamma=0.8)
-            # Gri tonlama
-            gray = cv2.cvtColor(img_gamma, cv2.COLOR_BGR2GRAY)
-            # CLAHE kontrast artırımı
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            gray_clahe = clahe.apply(gray)
-            # Keskinleştirme (Sharpening)
-            kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-            sharpened = cv2.filter2D(gray_clahe, -1, kernel)
-            
-            # 3. WebP olarak %65 kalitede sıkıştır
-            success, encoded_img = cv2.imencode('.webp', sharpened, [cv2.IMWRITE_WEBP_QUALITY, 65])
+            # Orijinal renkleri ve detayları korumak adına filtreleri kaldırıyoruz.
+            # Sadece makul bir boyuta (1000px) getirip yüksek kaliteli WebP sıkıştırması uyguluyoruz.
+            # Bu sayede Gemini 1 ve 7 gibi el yazısı detaylarını çok daha hatasız ayırt edebilir.
+            img_resized = resize_if_needed(img_np, target_width=1000)
+            success, encoded_img = cv2.imencode('.webp', img_resized, [cv2.IMWRITE_WEBP_QUALITY, 85])
             if success:
                 gemini_contents = encoded_img.tobytes()
-                print(f"FastAPI: Görsel optimize edildi (600px, CLAHE, WebP 65). Yeni boyut: {len(gemini_contents)} byte")
+                print(f"FastAPI: Görsel optimize edildi (1000px, Orijinal Renkli WebP 85). Boyut: {len(gemini_contents)} byte")
     except Exception as img_err:
         print(f"UYARI: Görsel optimizasyonu yapılamadı, orijinal dosya kullanılacak: {img_err}")
     
@@ -307,6 +295,11 @@ async def do_ocr(
                 
             if sanitized_custom_prompt:
                 instruction = sanitized_custom_prompt
+                # Kullanıcı kendi promptunu yazmış olsa dahi 1 ve 7 kuralını zorla ekleyelim
+                instruction += (
+                    "\nÖNEMLİ SAYISAL DOĞRULUK KURALI: Sayısal alanları (metraj, ağırlık, renk kodu, barkod vb.) okurken '1' (bir) ve '7' (yedi) rakamlarını birbirine karıştırma! "
+                    "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap."
+                )
                 if fabric_list_instruction:
                     instruction += f"\n{fabric_list_instruction}"
                 if color_list_instruction:
@@ -316,6 +309,8 @@ async def do_ocr(
                     "Verilen tekstil etiketi görselindeki bilgileri şemaya uygun olarak Türkçe ayıkla. "
                     "Kumaş adını (fabricType) temizle; 'KALİTE', 'LYCRA' veya 'KUMAŞ' gibi kelimeleri doğrudan kumaş adı olarak döndürme, gerçek cinsi bul. "
                     "Not: Görsel yamuk, açılı, ters dönmüş veya ışık yansıması nedeniyle parlamış/gölgeli olabilir. Resmi zihinsel olarak döndürerek ve parlama/gölgeleri yok sayarak dikkatlice oku. "
+                    "ÖNEMLİ SAYISAL DOĞRULUK KURALI: Sayısal alanları (metraj, ağırlık, renk kodu, barkod vb.) okurken '1' (bir) ve '7' (yedi) rakamlarını birbirine karıştırma! "
+                    "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap. "
                     f"{color_list_instruction}"
                     f"{fabric_list_instruction}"
                 )
@@ -619,17 +614,12 @@ async def do_ocr_yarn(
         nparr = np.frombuffer(original_contents, np.uint8)
         img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img_np is not None:
-            img_resized = resize_if_needed(img_np, target_width=500)
-            img_gamma = apply_gamma_correction(img_resized, gamma=0.8)
-            gray = cv2.cvtColor(img_gamma, cv2.COLOR_BGR2GRAY)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            gray_clahe = clahe.apply(gray)
-            kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-            sharpened = cv2.filter2D(gray_clahe, -1, kernel)
-            success, encoded_img = cv2.imencode('.webp', sharpened, [cv2.IMWRITE_WEBP_QUALITY, 65])
+            # Filtreleri kaldırıp orijinal renklerle 1000px WebP olarak sıkıştırıyoruz
+            img_resized = resize_if_needed(img_np, target_width=1000)
+            success, encoded_img = cv2.imencode('.webp', img_resized, [cv2.IMWRITE_WEBP_QUALITY, 85])
             if success:
                 gemini_contents = encoded_img.tobytes()
-                print(f"FastAPI: Yarn Görsel optimize edildi. Boyut: {len(gemini_contents)} byte")
+                print(f"FastAPI: Yarn Görsel optimize edildi (1000px, Orijinal Renkli WebP 85). Boyut: {len(gemini_contents)} byte")
     except Exception as img_err:
         print(f"UYARI: Görsel optimizasyonu yapılamadı: {img_err}")
     
@@ -662,6 +652,11 @@ async def do_ocr_yarn(
                 
             if sanitized_custom_prompt:
                 instruction = sanitized_custom_prompt
+                # Kullanıcı kendi promptunu yazmış olsa dahi 1 ve 7 kuralını ekleyelim
+                instruction += (
+                    "\nÖNEMLİ SAYISAL DOĞRULUK KURALI: Sayısal alanları (kg, lot no, iplik no, renk kodu vb.) okurken '1' (bir) ve '7' (yedi) rakamlarını birbirine karıştırma! "
+                    "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap."
+                )
                 if color_list_instruction:
                     instruction += f"\n{color_list_instruction}"
             else:
@@ -669,6 +664,8 @@ async def do_ocr_yarn(
                     "Verilen iplik etiketi görselindeki bilgileri şemaya uygun olarak Türkçe ayıkla. "
                     "İplik lot numarasını (lotNumber), iplik tipini/adını (yarnType), kalınlığını/numarasını (neNumber), net ağırlığını (initialKg) ve rengini ayıkla. "
                     "Not: Görsel tepe açılı veya ışık yansıması nedeniyle gölgeli olabilir. "
+                    "ÖNEMLİ SAYISAL DOĞRULUK KURALI: Sayısal alanları (kg, lot no, iplik no, renk kodu vb.) okurken '1' (bir) ve '7' (yedi) rakamlarını birbirine karıştırma! "
+                    "El yazılarında veya yazı tiplerinde 1 rakamı düz çizgi veya hafif eğik tepeliyken, 7 rakamı üstte bariz yatay bir çizgi barındırır. Bu ayrımı kesinlikle doğru yap. "
                     f"{color_list_instruction}"
                 )
 
