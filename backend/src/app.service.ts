@@ -156,7 +156,13 @@ export class AppService {
         orders: { select: { totalAmount: true, status: true } },
         financialTransactions: {
           where: { status: { notIn: ['cancelled', 'bounced'] } },
-          select: { amount: true, direction: true, currency: true, convertedAmount: true, targetCurrency: true },
+          select: {
+            amount: true,
+            direction: true,
+            currency: true,
+            convertedAmount: true,
+            targetCurrency: true,
+          },
         },
       },
     });
@@ -164,11 +170,11 @@ export class AppService {
     let totalReceivable = 0;
     for (const acc of customerAccounts) {
       const orderTotal = acc.orders
-        .filter((o: any) => o.status !== 'cancelled' && o.status !== 'draft')
-        .reduce((s: number, o: any) => s + Number(o.totalAmount || 0), 0);
+        .filter((o: { status: string; totalAmount: unknown }) => o.status !== 'cancelled' && o.status !== 'draft')
+        .reduce((s: number, o: { status: string; totalAmount: unknown }) => s + Number(o.totalAmount || 0), 0);
       const received = acc.financialTransactions
-        .filter((tx: any) => tx.direction === 'RECEIVABLE')
-        .reduce((s: number, tx: any) => s + Number(tx.amount || 0), 0);
+        .filter((tx: { direction: string; amount: unknown }) => tx.direction === 'RECEIVABLE')
+        .reduce((s: number, tx: { direction: string; amount: unknown }) => s + Number(tx.amount || 0), 0);
       const net = orderTotal - received;
       if (net > 0) totalReceivable += net;
     }
@@ -188,12 +194,13 @@ export class AppService {
     let totalPayable = 0;
     for (const acc of supplierAccounts) {
       const purchaseTotal = (acc.yarnStocks || []).reduce(
-        (s: number, ys: any) => s + Number(ys.initialKg) * Number(ys.unitPrice),
+        (s: number, ys: { initialKg: unknown; unitPrice: unknown }) =>
+          s + Number(ys.initialKg) * Number(ys.unitPrice),
         0,
       );
       const paid = acc.financialTransactions
-        .filter((tx: any) => tx.direction === 'PAYABLE')
-        .reduce((s: number, tx: any) => s + Number(tx.amount || 0), 0);
+        .filter((tx: { direction: string; amount: unknown }) => tx.direction === 'PAYABLE')
+        .reduce((s: number, tx: { direction: string; amount: unknown }) => s + Number(tx.amount || 0), 0);
       const net = purchaseTotal - paid;
       if (net > 0) totalPayable += net;
     }
