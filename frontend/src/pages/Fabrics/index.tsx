@@ -303,9 +303,11 @@ const Fabrics: React.FC = () => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     
-    // Proxy sunucusu (ngrok veya localhost:9000) üzerinden çalıştığımız için,
-    // statik dosyaları (public/uploads) relative path olarak yüklemek en güvenli yaklaşımdır.
-    // Bu sayede HTTPS/HTTP mixed content uyarısı oluşmaz ve mobil cihazlardan da erişilebilir olur.
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+    if (apiBase.startsWith('http://') || apiBase.startsWith('https://')) {
+      const backendUrl = apiBase.replace(/\/api$/, '');
+      return `${backendUrl}${url}`;
+    }
     return url;
   };
 
