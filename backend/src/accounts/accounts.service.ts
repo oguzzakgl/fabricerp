@@ -85,22 +85,30 @@ export class AccountsService {
 
   calculateAccountBalances(account: any) {
     const currency = account.currency || 'TRY';
-    
+
     let totalOrderBorc = 0;
     if (account.type === 'CUSTOMER' || account.type === 'BOTH') {
-      totalOrderBorc = (account.orders || []).reduce((sum: number, order: any) => {
-        if (order.status !== 'cancelled' && order.status !== 'draft') {
-          return sum + Number(order.totalAmount || 0);
-        }
-        return sum;
-      }, 0);
+      totalOrderBorc = (account.orders || []).reduce(
+        (sum: number, order: any) => {
+          if (order.status !== 'cancelled' && order.status !== 'draft') {
+            return sum + Number(order.totalAmount || 0);
+          }
+          return sum;
+        },
+        0,
+      );
     }
 
     let totalYarnStockPayable = 0;
     if (account.type === 'SUPPLIER' || account.type === 'BOTH') {
-      totalYarnStockPayable = (account.yarnStocks || []).reduce((sum: number, yarn: any) => {
-        return sum + (Number(yarn.initialKg || 0) * Number(yarn.unitPrice || 0));
-      }, 0);
+      totalYarnStockPayable = (account.yarnStocks || []).reduce(
+        (sum: number, yarn: any) => {
+          return (
+            sum + Number(yarn.initialKg || 0) * Number(yarn.unitPrice || 0)
+          );
+        },
+        0,
+      );
     }
 
     let totalReceived = 0;
@@ -108,7 +116,7 @@ export class AccountsService {
 
     (account.financialTransactions || []).forEach((tx: any) => {
       if (tx.status === 'cancelled' || tx.status === 'bounced') return;
-      
+
       let txAmount = Number(tx.amount || 0);
       if (tx.currency !== currency) {
         if (tx.convertedAmount && tx.targetCurrency === currency) {
@@ -131,7 +139,8 @@ export class AccountsService {
     } else if (account.type === 'SUPPLIER') {
       netBalance = -(totalYarnStockPayable - totalPaid);
     } else {
-      netBalance = (totalOrderBorc - totalReceived) - (totalYarnStockPayable - totalPaid);
+      netBalance =
+        totalOrderBorc - totalReceived - (totalYarnStockPayable - totalPaid);
     }
 
     const balanceInDefault = netBalance;
@@ -148,11 +157,7 @@ export class AccountsService {
     };
   }
 
-  async createPayment(
-    accountId: string,
-    paymentDto: any,
-    tenantId: string,
-  ) {
+  async createPayment(accountId: string, paymentDto: any, tenantId: string) {
     const account = await this.prisma.account.findFirst({
       where: { id: accountId, tenantId },
     });
@@ -222,7 +227,8 @@ export class AccountsService {
 
     const mappedData = data.map((account) => {
       const balances = this.calculateAccountBalances(account);
-      const { orders, yarnStocks, financialTransactions, ...rest } = account as any;
+      const { orders, yarnStocks, financialTransactions, ...rest } =
+        account as any;
       return {
         ...rest,
         ...balances,

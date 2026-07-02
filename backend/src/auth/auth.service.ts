@@ -11,6 +11,48 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { MailService } from '../mail/mail.service';
+import * as dns from 'dns';
+import { promisify } from 'util';
+
+const resolveMx = promisify(dns.resolveMx);
+
+async function validateEmailRealExistence(email: string): Promise<boolean> {
+  const domain = email.split('@')[1];
+  if (!domain) return false;
+
+  const disposableDomains = [
+    'tempmail.com',
+    '10minutemail.com',
+    'yopmail.com',
+    'mailinator.com',
+    'guerrillamail.com',
+    'temp-mail.org',
+    'dispostable.com',
+    'getairmail.com',
+    'sharklasers.com',
+    'guerrillamailblock.com',
+    'guerrillamail.net',
+    'guerrillamail.org',
+    'guerrillamail.biz',
+    'grr.la',
+    'pokemail.net',
+  ];
+  if (disposableDomains.includes(domain.toLowerCase())) {
+    return false;
+  }
+
+  try {
+    const mxRecords = await resolveMx(domain);
+    return mxRecords && mxRecords.length > 0;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENODATA' || code === 'ENOTFOUND') {
+      return false; // Domain var ama MX kaydı yok veya domain tamamen geçersiz.
+    }
+    // DNS sunucusuna erişilemediğinde (ECONNREFUSED vb.) kullanıcıyı engellememek için bypass ediyoruz.
+    return true;
+  }
+}
 
 interface ExtendedInviteCode {
   id: string;
@@ -56,6 +98,13 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    const isRealEmail = await validateEmailRealExistence(dto.email);
+    if (!isRealEmail) {
+      throw new BadRequestException(
+        'Geçersiz veya sahte bir e-posta adresi girdiniz.',
+      );
+    }
+
     const inviteRecord = (await this.prisma.inviteCode.findUnique({
       where: { code: dto.inviteCode.trim().toUpperCase() },
     })) as unknown as ExtendedInviteCode;
@@ -105,7 +154,7 @@ export class AuthService {
           email: dto.email.toLowerCase(),
           password: passwordHash,
           tenantId: null, // Tenant onboarding adımında kurulacak
-          role: 'ADMIN',
+          role: 'USER', // Default role is USER, not ADMIN
           plan: inviteRecord.plan, // Davet kodundaki planı kullanıcıya ata
         } as unknown as any,
       })) as unknown as ExtendedUser;
@@ -280,12 +329,13 @@ export class AuthService {
         } as unknown as any,
       })) as unknown as ExtendedTenant;
 
-      // 2. Kullanıcıyı bu tenant'a bağla ve ismini güncelle
+      // 2. Kullanıcıyı bu tenant'a bağla, ismini güncelle ve rolünü ADMIN yap
       const updatedUser = await tx.user.update({
         where: { id: userId },
         data: {
           name: dto.name,
           tenantId: tenant.id,
+          role: 'ADMIN',
         },
       });
 

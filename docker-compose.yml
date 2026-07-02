@@ -28,8 +28,8 @@ services:
   # 3. PaddleOCR FastAPI Servisi
   ocr-service:
     build:
-      context: .
-      dockerfile: Dockerfile.ocr
+      context: ./ocr
+      dockerfile: Dockerfile
     container_name: fabricerp_ocr
     restart: always
     ports:

@@ -14,19 +14,13 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('--- USERS ---');
-  const users = await prisma.user.findMany({
-    include: { tenant: true },
-  });
-  console.log(JSON.stringify(users, null, 2));
-
-  console.log('--- INVITE CODES ---');
-  const codes = await prisma.inviteCode.findMany();
-  console.log(JSON.stringify(codes, null, 2));
-
-  console.log('--- TENANTS ---');
+  console.log('--- ALL TENANTS ---');
   const tenants = await prisma.tenant.findMany();
-  console.log(JSON.stringify(tenants, null, 2));
+  tenants.forEach((t) => {
+    console.log(
+      `ID: ${t.id} | Name: ${t.name} | Key: ${t.geminiApiKey} | Length: ${t.geminiApiKey?.length}`,
+    );
+  });
 }
 
 main()

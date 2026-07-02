@@ -139,9 +139,10 @@ const TenantDetail: React.FC = () => {
         Müşteri Firmalar
       </button>
 
+      {/* Üst Kısım: Firma Bilgileri (Sol) + API Ayarları (Sağ) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sol: Firma Bilgileri + API Ayarları */}
-        <div className="lg:col-span-1 space-y-4">
+        {/* Sol: Firma Bilgileri */}
+        <div className="lg:col-span-1">
           <div className="bg-white rounded-2xl border border-outline-variant shadow-xs p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
@@ -177,8 +178,10 @@ const TenantDetail: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
 
-          {/* API Ayarları */}
+        {/* Sağ: API Ayarları */}
+        <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl border border-outline-variant shadow-xs p-6 space-y-4">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-secondary text-base">psychology</span>
@@ -217,61 +220,59 @@ const TenantDetail: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Sağ: Kullanıcılar */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-xs overflow-hidden">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-outline-variant bg-surface-container-low">
-              <h3 className="font-bold text-sm text-on-surface">Kullanıcılar</h3>
-              <button onClick={() => setAddModal(true)} className="bg-secondary text-on-secondary px-3 py-1.5 rounded-lg text-xs font-bold hover:brightness-105 flex items-center gap-1.5 transition-all">
-                <span className="material-symbols-outlined text-xs">add</span>
-                Kullanıcı Ekle
-              </button>
-            </div>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-outline-variant text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
-                  <th className="py-3 px-4">Ad Soyad</th>
-                  <th className="py-3 px-4">E-posta</th>
-                  <th className="py-3 px-4">Rol</th>
-                  <th className="py-3 px-4">Tarih</th>
-                  <th className="py-3 px-4 text-right">İşlemler</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant text-sm">
-                {tenant.users.map(u => (
-                  <tr key={u.id} className="hover:bg-arka-plan-gri/50 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-on-surface">{u.name || '-'}</td>
-                    <td className="py-3 px-4 font-mono text-xs text-on-surface-variant">{u.email}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${roleBadge(u.role)}`}>{u.role}</span>
-                    </td>
-                    <td className="py-3 px-4 text-xs text-on-surface-variant">{new Date(u.createdAt).toLocaleDateString('tr-TR')}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => { setPwdModal(u); setNewPwd(''); }} title="Şifre Değiştir"
-                          className="p-1.5 hover:bg-arka-plan-gri rounded-lg text-on-surface-variant hover:text-on-surface transition-colors">
-                          <span className="material-symbols-outlined text-base">key</span>
-                        </button>
-                        <button onClick={() => { setEmailModal(u); setNewEmail(u.email); }} title="E-posta Değiştir"
-                          className="p-1.5 hover:bg-arka-plan-gri rounded-lg text-on-surface-variant hover:text-on-surface transition-colors">
-                          <span className="material-symbols-outlined text-base">mail</span>
-                        </button>
-                        <button onClick={() => handleDeleteUser(u.id)} title="Sil"
-                          className="p-1.5 hover:bg-red-50 rounded-lg text-red-400 hover:text-red-600 transition-colors">
-                          <span className="material-symbols-outlined text-base">delete</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {tenant.users.length === 0 && (
-                  <tr><td colSpan={5} className="py-8 text-center text-sm text-on-surface-variant">Kullanıcı bulunamadı.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+      {/* Alt Kısım: Kullanıcılar */}
+      <div className="bg-white rounded-2xl border border-outline-variant shadow-xs overflow-hidden">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-outline-variant bg-surface-container-low">
+          <h3 className="font-bold text-sm text-on-surface">Kullanıcılar</h3>
+          <button onClick={() => setAddModal(true)} className="bg-secondary text-on-secondary px-3 py-1.5 rounded-lg text-xs font-bold hover:brightness-105 flex items-center gap-1.5 transition-all">
+            <span className="material-symbols-outlined text-xs">add</span>
+            Kullanıcı Ekle
+          </button>
         </div>
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-outline-variant text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+              <th className="py-3 px-4">Ad Soyad</th>
+              <th className="py-3 px-4">E-posta</th>
+              <th className="py-3 px-4">Rol</th>
+              <th className="py-3 px-4">Tarih</th>
+              <th className="py-3 px-4 text-right">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-outline-variant text-sm">
+            {tenant.users.map(u => (
+              <tr key={u.id} className="hover:bg-arka-plan-gri/50 transition-colors">
+                <td className="py-3 px-4 font-semibold text-on-surface">{u.name || '-'}</td>
+                <td className="py-3 px-4 font-mono text-xs text-on-surface-variant">{u.email}</td>
+                <td className="py-3 px-4">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${roleBadge(u.role)}`}>{u.role}</span>
+                </td>
+                <td className="py-3 px-4 text-xs text-on-surface-variant">{new Date(u.createdAt).toLocaleDateString('tr-TR')}</td>
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-2 justify-end">
+                    <button onClick={() => { setPwdModal(u); setNewPwd(''); }} title="Şifre Değiştir"
+                      className="p-1.5 hover:bg-arka-plan-gri rounded-lg text-on-surface-variant hover:text-on-surface transition-colors">
+                      <span className="material-symbols-outlined text-base">key</span>
+                    </button>
+                    <button onClick={() => { setEmailModal(u); setNewEmail(u.email); }} title="E-posta Değiştir"
+                      className="p-1.5 hover:bg-arka-plan-gri rounded-lg text-on-surface-variant hover:text-on-surface transition-colors">
+                      <span className="material-symbols-outlined text-base">mail</span>
+                    </button>
+                    <button onClick={() => handleDeleteUser(u.id)} title="Sil"
+                      className="p-1.5 hover:bg-red-50 rounded-lg text-red-400 hover:text-red-600 transition-colors">
+                      <span className="material-symbols-outlined text-base">delete</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {tenant.users.length === 0 && (
+              <tr><td colSpan={5} className="py-8 text-center text-sm text-on-surface-variant">Kullanıcı bulunamadı.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Şifre Modal */}

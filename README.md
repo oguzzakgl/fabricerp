@@ -55,11 +55,19 @@ fabricerp/
 ├── frontend/           # React + Vite Frontend Uygulaması
 │   ├── src/            # Kaynak Kodları (Pages, Components, Contexts, vb.)
 │   └── public/         # Statik Varlıklar
-├── ocr_service.py      # FastAPI OCR Servisi (Gemini API & Görsel Ön İşleme)
+├── ocr/                # FastAPI OCR Servis Klasörü (Gemini API & Görsel Ön İşleme)
+│   ├── ocr_service.py  # OCR Ana Python Kodu
+│   ├── imghdr.py       # Python 3.13+ Uyumluluk Katmanı (Shim)
+│   └── Dockerfile      # OCR Docker Dosyası
+├── docs/               # Sistem Dokümantasyon Klasörü
+│   ├── roadmap.md      # Faz Yol Haritası ve Google Cloud Mimari Detayları
+│   └── KURULUM_REHBERI.md # Canlı Sunucu Kurulum Kılavuzu
+├── tests/              # Test Dosyaları ve Örnek Görseller (Git-ignored)
+│   ├── ornekocretiketleri/ # OCR Testleri İçin Örnek Etiket Görselleri
+│   └── generate_test_xlsx.js # Test Excel Dosyası Oluşturma Scripti
 ├── start-all.js        # Geliştirme Ortamında Tüm Servisleri Başlatıcı Script
 ├── proxy.js            # Servisler Arası Yönlendirici Proxy
-├── docker-compose.yml  # Canlı Ortam Docker Dağıtım Dosyası
-└── KURULUM_REHBERI.md  # Detaylı Canlı Sunucuya Dağıtım Rehberi
+└── docker-compose.yml  # Canlı Ortam Docker Dağıtım Dosyası
 ```
 
 ---

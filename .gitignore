@@ -4,12 +4,20 @@ package-lock.json
 scratch-test.js
 test_cari_hesaplar.xlsx
 test_cari_hesaplar_valid.xlsx
+ngrok.exe
+tests/
 
 # Environment files
 .env
 .env.local
 .env.production
 .env.development
+
+# Python
+.venv/
+__pycache__/
+ocr/__pycache__/
+*.pyc
 
 # Frontend
 frontend/node_modules/
@@ -35,3 +43,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Local Netlify folder
+.netlify

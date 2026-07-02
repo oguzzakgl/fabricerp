@@ -21,6 +21,7 @@ const Settings: React.FC = () => {
   const [address, setAddress] = useState('');
   const [iban, setIban] = useState('');
   const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiPrompt, setGeminiPrompt] = useState('');
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
@@ -49,6 +50,7 @@ const Settings: React.FC = () => {
         if (response.data.address !== undefined) setAddress(response.data.address);
         if (response.data.iban !== undefined) setIban(response.data.iban);
         if (response.data.geminiApiKey !== undefined) setGeminiApiKey(response.data.geminiApiKey);
+        if (response.data.geminiPrompt !== undefined) setGeminiPrompt(response.data.geminiPrompt);
       }
     } catch (error) {
       console.error('Ayarlar yüklenemedi:', error);
@@ -124,6 +126,7 @@ const Settings: React.FC = () => {
         address,
         iban,
         geminiApiKey,
+        geminiPrompt,
       });
       window.dispatchEvent(new Event('settingsChanged'));
       alert('Ayarlar başarıyla kaydedildi.');
@@ -304,7 +307,8 @@ const Settings: React.FC = () => {
                   <span className="material-symbols-outlined text-secondary text-base">psychology</span>
                   <h5 className="font-bold text-sm text-on-surface">Gemini Yapay Zeka & OCR Entegrasyonu</h5>
                 </div>
-                <p className="text-xs text-on-surface-variant">Etiket okuma (OCR) ve veri analiz özellikleri için Gemini API anahtarınızı tanımlayın.</p>
+                <p className="text-xs text-on-surface-variant">Etiket okuma (OCR) ve veri analiz özellikleri için Gemini API anahtarınızı ve özel şablonlarınızı tanımlayın.</p>
+                
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">Gemini API Key</label>
                   <input
@@ -315,6 +319,18 @@ const Settings: React.FC = () => {
                     className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant rounded text-on-surface focus:ring-1 focus:ring-secondary outline-none font-mono"
                   />
                   <p className="text-[10px] text-on-surface-variant">API anahtarınız şifrelenmiş olarak güvenli bir şekilde saklanır.</p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">Etiket Tanımlama Şablonu (Prompt)</label>
+                  <textarea
+                    value={geminiPrompt}
+                    onChange={(e) => setGeminiPrompt(e.target.value)}
+                    placeholder="Örn: Benim etiketimde renk kısmı 'Renk:' başlığı altında yazar ve metindir, metre ise 'MTR' olarak yazar..."
+                    rows={4}
+                    className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant rounded text-on-surface focus:ring-1 focus:ring-secondary outline-none resize-none"
+                  />
+                  <p className="text-[10px] text-on-surface-variant">Gemini modeline kendi etiketinizin yerleşimini ve kurallarını buraya yazarak öğretebilirsiniz. Boş bırakırsanız varsayılan şablon kullanılır.</p>
                 </div>
               </div>
 

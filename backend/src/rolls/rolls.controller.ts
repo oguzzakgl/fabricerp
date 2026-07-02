@@ -59,11 +59,16 @@ export class RollsController {
 
     try {
       let fabricTypes: string[] = [];
-      let tenant: any = null;
+      let tenantColors: string[] = [];
+      let tenant: {
+        geminiApiKey?: string | null;
+        geminiPrompt?: string | null;
+        plan?: string;
+      } | null = null;
 
       if (tenantId) {
-        // Veritabanından bu kiracıya ait kumaş isimlerini ve geminiApiKey bilgisini çek
-        const [fabricCards, tenantRes] = await Promise.all([
+        // Veritabanından bu kiracıya ait kumaş isimlerini, geminiApiKey ve renk kartelasını çek
+        const [fabricCards, tenantRes, rollColors] = await Promise.all([
           this.prisma.fabricCard.findMany({
             where: { tenantId },
             select: { fabricType: true },
@@ -71,17 +76,28 @@ export class RollsController {
           this.prisma.tenant.findUnique({
             where: { id: tenantId },
           }),
+          this.prisma.roll.findMany({
+            where: { tenantId },
+            distinct: ['color'],
+            select: { color: true },
+          }),
         ]);
         if (tenantRes && tenantRes.plan === 'STARTER') {
-          return { error: 'Görsel okutma (OCR) özelliği başlangıç paketinde desteklenmemektedir. Lütfen paketinizi yükseltin veya elle giriş yapın.' };
+          return {
+            error:
+              'Görsel okutma (OCR) özelliği başlangıç paketinde desteklenmemektedir. Lütfen paketinizi yükseltin veya elle giriş yapın.',
+          };
         }
         fabricTypes = fabricCards.map((c) => c.fabricType);
+        tenantColors = rollColors.map((r) => r.color).filter(Boolean);
         tenant = tenantRes;
       }
 
       console.log(
         '[doOcr] Bulunan kumaş kartelası sayısı:',
         fabricTypes.length,
+        'Renk sayısı:',
+        tenantColors.length,
       );
 
       console.log('[doOcr] Blob oluşturuluyor...');
@@ -91,15 +107,17 @@ export class RollsController {
       });
       formData.append('file', blob, file.originalname);
       formData.append('fabric_types', JSON.stringify(fabricTypes));
-      const tenantKey = tenant?.geminiApiKey?.trim();
+      formData.append('color_list', JSON.stringify(tenantColors));
+      const tenantKey =
+        tenant?.geminiApiKey?.trim() || process.env.GEMINI_API_KEY || '';
       if (tenantKey) {
-        formData.append('gemini_api_key', tenantKey);
+        formData.append('gemini_api_key', tenantKey.trim());
       }
-      const tenantPrompt = tenant?.geminiPrompt?.trim();
+      const tenantPrompt = tenant?.geminiPrompt?.trim() ?? '';
       if (tenantPrompt) {
         formData.append('custom_prompt', tenantPrompt);
       }
-      console.log('[doOcr] Blob ve fabric_types oluşturuldu.');
+      console.log('[doOcr] Blob, fabric_types ve color_list oluşturuldu.');
 
       const ocrUrl = process.env.OCR_SERVICE_URL || 'http://127.0.0.1:8000/ocr';
       console.log('[doOcr] OCR Servisine istek atılıyor:', ocrUrl);

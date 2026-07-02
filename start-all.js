@@ -38,7 +38,7 @@ const path = require('path');
 
 // 0. OCR Service
 const pythonPath = path.resolve('.venv/Scripts/python.exe');
-startProcess('OCR-Service', `"${pythonPath}"`, ['ocr_service.py']);
+startProcess('OCR-Service', `"${pythonPath}"`, ['ocr_service.py'], { cwd: './ocr' });
 
 // 1. Backend
 startProcess('Backend', 'npm', ['run', 'dev:backend']);
@@ -52,10 +52,22 @@ startProcess('Marketing', 'npm', ['run', 'dev'], { cwd: './marketing' });
 // 4. Proxy
 startProcess('Proxy', 'node', ['proxy.js']);
 
+const fs = require('fs');
+
 // 5. Ngrok
+// Resmi winget kurulum yolunu kontrol et (Kullanıcı terminali kapatıp açmasa bile çalışması için)
+let ngrokCmd = 'ngrok';
+const wingetNgrokPath = path.join(
+  process.env.LOCALAPPDATA || '',
+  'Microsoft/WinGet/Packages/Ngrok.Ngrok_Microsoft.Winget.Source_8wekyb3d8bbwe/ngrok.exe'
+);
+if (fs.existsSync(wingetNgrokPath)) {
+  ngrokCmd = `"${wingetNgrokPath}"`;
+  console.log(`[Ngrok] Winget kurulum yolu tespit edildi: ${wingetNgrokPath}`);
+}
+
 // Run ngrok http 9000
-const ngrokPath = path.resolve('./ngrok.exe');
-startProcess('Ngrok', `"${ngrokPath}"`, ['http', '9000']);
+startProcess('Ngrok', ngrokCmd, ['http', '9000']);
 
 // Poll ngrok API for public URL
 let retries = 0;

@@ -21,7 +21,7 @@ const routes = {
 function router() {
   const path = window.location.pathname;
   if (path === '/login') {
-    window.location.href = '/login';
+    window.location.href = ERP_APP_URL;
     return;
   }
   const renderer = routes[path] || renderLanding;
@@ -62,7 +62,7 @@ function getNavbarHtml() {
       <div class="nav-links">
         <a href="#features">Özellikler</a>
         <a href="#pricing">Fiyatlandırma</a>
-        <a href="/login" class="btn btn-secondary">Giriş Yap</a>
+        <a href="${ERP_APP_URL}" class="btn btn-secondary">Giriş Yap</a>
         <a href="/register" data-link class="btn btn-accent">Kayıt Ol</a>
       </div>
     </nav>

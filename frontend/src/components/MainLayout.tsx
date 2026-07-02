@@ -49,7 +49,7 @@ const MainLayout: React.FC = () => {
     { path: '/finance', label: 'Finans', icon: 'account_balance_wallet' },
   ];
 
-  const isSuperAdmin = user && (user as { tenantId?: string | null }).tenantId === null;
+  const isSuperAdmin = user && (user as { tenantId?: string | null }).tenantId === null && (user as { role?: string }).role === 'SUPERADMIN';
   const superAdminMenuItems = isSuperAdmin ? [
     { path: '/superadmin', label: 'Admin Dashboard', icon: 'admin_panel_settings' },
     { path: '/superadmin/tenants', label: 'Müşteri Firmalar', icon: 'corporate_fare' },

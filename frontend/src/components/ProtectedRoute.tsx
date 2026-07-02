@@ -6,12 +6,6 @@ export const ProtectedRoute: React.FC = () => {
   const { token, tenant, loading, user } = useAuth();
   const location = useLocation();
 
-  React.useEffect(() => {
-    if (!loading && !token) {
-      window.location.href = import.meta.env.VITE_MARKETING_URL || 'http://localhost:4000';
-    }
-  }, [loading, token]);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-arka-plan-gri flex flex-col items-center justify-center gap-4">
@@ -23,10 +17,10 @@ export const ProtectedRoute: React.FC = () => {
   }
 
   if (!token) {
-    return null;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  const isSuperAdmin = user && (user as { tenantId?: string | null }).tenantId === null;
+  const isSuperAdmin = user && (user as { tenantId?: string | null }).tenantId === null && (user as { role?: string }).role === 'SUPERADMIN';
 
   // Kullanıcı giriş yapmış ama henüz bir firması (tenant) yoksa ve süper admin değilse
   if (!tenant && !isSuperAdmin) {

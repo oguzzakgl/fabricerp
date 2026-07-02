@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setTenant(null);
     setToken(null);
-    window.location.href = 'http://localhost:4000/login';
+    window.location.href = '/login';
   };
 
   useEffect(() => {

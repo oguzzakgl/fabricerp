@@ -7,22 +7,61 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
+import { IsString, IsOptional, IsEmail } from 'class-validator';
+
 export class UpdateSettingsDto {
-  companyName!: string;
+  @IsOptional()
+  @IsString()
+  companyName?: string;
+
+  @IsOptional()
+  @IsString()
   taxOffice?: string;
+
+  @IsOptional()
+  @IsString()
   taxNumber?: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
   address?: string;
+
+  @IsOptional()
+  @IsString()
   iban?: string;
+
+  @IsOptional()
+  @IsString()
   logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
   geminiApiKey?: string;
+
+  @IsOptional()
+  @IsString()
+  geminiPrompt?: string;
 }
 
 export class CreateUserDto {
+  @IsString()
   name!: string;
+
+  @IsEmail()
   email!: string;
+
+  @IsString()
   password!: string;
+
+  @IsString()
   role!: string;
 }
 
@@ -55,7 +94,7 @@ export class SettingsService {
     }
 
     return {
-      taxRate: 20, // Sabit veya sonradan genişletilebilir
+      taxRate: 20,
       companyName: tenant.name,
       taxOffice: tenant.taxOffice || '',
       taxNumber: tenant.taxNumber || '',
@@ -66,6 +105,8 @@ export class SettingsService {
       logoUrl: tenant.logoUrl || '',
       geminiApiKey:
         (tenant as { geminiApiKey?: string | null }).geminiApiKey || '',
+      geminiPrompt:
+        (tenant as { geminiPrompt?: string | null }).geminiPrompt || '',
     };
   }
 
@@ -110,6 +151,7 @@ export class SettingsService {
         iban: data.iban,
         logoUrl: data.logoUrl,
         geminiApiKey: data.geminiApiKey,
+        geminiPrompt: data.geminiPrompt,
       },
     });
 
@@ -125,6 +167,8 @@ export class SettingsService {
       logoUrl: updated.logoUrl || '',
       geminiApiKey:
         (updated as { geminiApiKey?: string | null }).geminiApiKey || '',
+      geminiPrompt:
+        (updated as { geminiPrompt?: string | null }).geminiPrompt || '',
     };
   }
 
@@ -201,7 +245,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
 
@@ -218,7 +266,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
 
@@ -241,7 +293,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
 
@@ -266,7 +322,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
 
@@ -283,7 +343,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
 
@@ -308,7 +372,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
 
@@ -322,7 +390,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
     const existing = await this.prisma.user.findUnique({
@@ -367,7 +439,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
     const tenant = await this.prisma.tenant.findUnique({
@@ -397,7 +473,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
     if (!newPassword || newPassword.length < 6) {
@@ -419,7 +499,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
     if (!newEmail || !newEmail.includes('@')) {
@@ -446,7 +530,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
     const tenant = await this.prisma.tenant.findUnique({
@@ -481,7 +569,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
     if (userId === activeUserId) {
@@ -501,7 +593,11 @@ export class SettingsService {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
     });
-    if (!activeUser || activeUser.tenantId !== null) {
+    if (
+      !activeUser ||
+      activeUser.role !== 'SUPERADMIN' ||
+      activeUser.tenantId !== null
+    ) {
       throw new BadRequestException('Bu işlem için yetkiniz bulunmamaktadır.');
     }
     const tenant = await this.prisma.tenant.findUnique({
