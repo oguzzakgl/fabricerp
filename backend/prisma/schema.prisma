@@ -17,6 +17,7 @@ model Account {
   email                String?
   address              String?
   currency             String                @default("TRY")
+  ocrPrompt            String?               @map("ocr_prompt")
   tenantId             String?               @map("tenant_id") @db.Uuid
   tenant               Tenant?               @relation(fields: [tenantId], references: [id])
   createdAt            DateTime              @default(now()) @map("created_at")

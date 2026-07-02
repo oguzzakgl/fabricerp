@@ -84,17 +84,27 @@ export class YarnStocksController {
   async doOcr(
     @UploadedFile() file: Express.Multer.File,
     @TenantId() tenantId: string,
+    @Body('supplierId') supplierId?: string,
   ) {
     try {
-      console.log('[YarnStocksController.doOcr] Istek alindi.');
+      console.log('[YarnStocksController.doOcr] Istek alindi. Tedarikçi ID:', supplierId);
       if (!file) {
         throw new BadRequestException('Dosya yuklenmedi.');
       }
 
-      // Plan check (Starter plan is blocked from using OCR)
-      const tenant = await this.prisma.tenant.findUnique({
-        where: { id: tenantId },
-      });
+      // Fetch tenant and selected supplier ocrPrompt
+      const [tenant, supplierRes] = await Promise.all([
+        this.prisma.tenant.findUnique({
+          where: { id: tenantId },
+        }),
+        supplierId
+          ? this.prisma.account.findFirst({
+              where: { id: supplierId, tenantId },
+              select: { ocrPrompt: true },
+            })
+          : null,
+      ]);
+
       if (tenant?.plan === 'STARTER') {
         return {
           error:
@@ -123,9 +133,11 @@ export class YarnStocksController {
       if (tenantKey) {
         formData.append('gemini_api_key', tenantKey);
       }
-      const tenantPrompt = (tenant as any)?.geminiYarnPrompt?.trim() ?? '';
-      if (tenantPrompt) {
-        formData.append('custom_prompt', tenantPrompt);
+      
+      // Tedarikçiye özel prompt varsa öncelikli olarak onu, yoksa genel iplik promptunu kullan
+      const finalPrompt = supplierRes?.ocrPrompt?.trim() || (tenant as any)?.geminiYarnPrompt?.trim() || '';
+      if (finalPrompt) {
+        formData.append('custom_prompt', finalPrompt);
       }
 
       const ocrUrl = (

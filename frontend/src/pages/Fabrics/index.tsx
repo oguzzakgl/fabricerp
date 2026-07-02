@@ -93,6 +93,8 @@ const Fabrics: React.FC = () => {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [detectedData, setDetectedData] = useState<OcrRecord | null>(null);
   const [fabricCardsMap, setFabricCardsMap] = useState<Record<string, FabricCard>>({});
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [colorModalOpen, setColorModalOpen] = useState(false);
   const [selectedFabricForColor, setSelectedFabricForColor] = useState<string>('');
   const [localColorMapping, setLocalColorMapping] = useState<{ [key: string]: string }>({});
@@ -187,6 +189,23 @@ const Fabrics: React.FC = () => {
       console.error('Kumaş kartelaları yüklenemedi:', err);
     }
   }, []);
+
+  const fetchAccountsForOcr = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/accounts', { params: { limit: 1000 } });
+      setAccounts(res.data.data || []);
+    } catch (err) {
+      console.error('Cariler yüklenemedi:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (ocrModalOpen) {
+      void fetchAccountsForOcr();
+    } else {
+      setSelectedCustomerId('');
+    }
+  }, [ocrModalOpen, fetchAccountsForOcr]);
 
   useEffect(() => {
     let active = true;
@@ -519,6 +538,9 @@ const Fabrics: React.FC = () => {
 
       const formData = new FormData();
       formData.append('file', compressedBlob, fileName.endsWith('.webp') ? fileName : `${fileName}.webp`);
+      if (selectedCustomerId) {
+        formData.append('customerId', selectedCustomerId);
+      }
 
       const response = await apiClient.post('/rolls/ocr', formData, {
         headers: {
@@ -2071,6 +2093,23 @@ const Fabrics: React.FC = () => {
                       type="text" 
                     />
                     <p className="text-[10px] text-on-surface-variant">Okutulan etiket ile karşılaştırmak için kullanılacaktır. Boş bırakılırsa etikette yazan isim otomatik açılır.</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-on-surface-variant uppercase">İlişkili Müşteri (Cari Hesap)</label>
+                    <select
+                      value={selectedCustomerId}
+                      onChange={(e) => setSelectedCustomerId(e.target.value)}
+                      className="w-full border border-outline-variant rounded px-3 py-2 text-sm focus:ring-1 focus:ring-bilgi-mavisi outline-none bg-white font-medium"
+                    >
+                      <option value="">Seçilmedi (Varsayılan Prompt Kullanılır)</option>
+                      {accounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} ({acc.code}) {acc.ocrPrompt ? '⚡ Özel Prompt' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-on-surface-variant">Seçilen müşteriye özel etiket okuma promptu tanımlanmışsa Gemini onu kullanacaktır.</p>
                   </div>
                 </div>
 

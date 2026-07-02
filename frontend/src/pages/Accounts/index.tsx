@@ -17,6 +17,7 @@ interface Account {
   address?: string;
   createdAt: string;
   currency?: string;
+  ocrPrompt?: string;
   balanceTRY?: number;
   balanceUSD?: number;
   balanceEUR?: number;
@@ -54,6 +55,7 @@ const Accounts: React.FC = () => {
     email: '',
     address: '',
     currency: 'TRY',
+    ocrPrompt: '',
   });
 
   // Detail View states
@@ -330,6 +332,7 @@ const Accounts: React.FC = () => {
       email: '',
       address: '',
       currency: 'TRY',
+      ocrPrompt: '',
     });
     setModalOpen(true);
   };
@@ -347,6 +350,7 @@ const Accounts: React.FC = () => {
       email: account.email || '',
       address: account.address || '',
       currency: account.currency || 'TRY',
+      ocrPrompt: account.ocrPrompt || '',
     });
     setModalOpen(true);
   };
@@ -1386,6 +1390,18 @@ const Accounts: React.FC = () => {
                   <option value="USD">Amerikan Doları (USD)</option>
                   <option value="EUR">Euro (EUR)</option>
                 </select>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-kucuk-not font-semibold text-on-surface-variant mb-1">Müşteriye/Tedarikçiye Özel OCR (Barkod Okuma) Promptu</label>
+                <textarea 
+                  name="ocrPrompt"
+                  value={formValues.ocrPrompt}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-outline-variant rounded focus:ring-1 focus:ring-bilgi-mavisi outline-none resize-none font-mono text-sm" 
+                  placeholder="Bu cariden gelen etiketlerin nasıl okunacağını tarif edin... (Örn: Metraj için 'MTR' veya 'Boy' başlığına bak...)" 
+                  rows={4}
+                ></textarea>
               </div>
 
               <div className="col-span-2 flex justify-end gap-3 mt-4">

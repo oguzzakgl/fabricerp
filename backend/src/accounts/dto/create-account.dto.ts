@@ -44,4 +44,8 @@ export class CreateAccountDto {
   @IsString()
   @IsIn(['TRY', 'USD', 'EUR'])
   currency?: string;
+
+  @IsOptional()
+  @IsString()
+  ocrPrompt?: string;
 }

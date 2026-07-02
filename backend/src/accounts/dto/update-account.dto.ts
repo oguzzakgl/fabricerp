@@ -38,4 +38,8 @@ export class UpdateAccountDto {
   @IsString()
   @IsIn(['TRY', 'USD', 'EUR'])
   currency?: string;
+
+  @IsOptional()
+  @IsString()
+  ocrPrompt?: string;
 }

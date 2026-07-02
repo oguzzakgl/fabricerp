@@ -45,12 +45,15 @@ export class RollsController {
   async doOcr(
     @UploadedFile() file: Express.Multer.File,
     @TenantId() tenantId: string,
+    @Body('customerId') customerId?: string,
   ): Promise<OcrResponse | { error: string }> {
     console.log(
       '[doOcr] İstek alındı. Dosya adı:',
       file?.originalname,
       'Boyut:',
       file?.size,
+      'Müşteri ID:',
+      customerId,
     );
     if (!file) {
       console.log('[doOcr] Hata: Dosya yüklenmedi.');
@@ -65,10 +68,11 @@ export class RollsController {
         geminiPrompt?: string | null;
         plan?: string;
       } | null = null;
+      let customerOcrPrompt = '';
 
       if (tenantId) {
-        // Veritabanından bu kiracıya ait kumaş isimlerini, geminiApiKey ve renk kartelasını çek
-        const [fabricCards, tenantRes, rollColors] = await Promise.all([
+        // Veritabanından bu kiracıya ait kumaş isimlerini, geminiApiKey, renk kartelasını ve seçildiyse müşterinin özel promptunu çek
+        const [fabricCards, tenantRes, rollColors, customerRes] = await Promise.all([
           this.prisma.fabricCard.findMany({
             where: { tenantId },
             select: { fabricType: true },
@@ -81,6 +85,12 @@ export class RollsController {
             distinct: ['color'],
             select: { color: true },
           }),
+          customerId
+            ? this.prisma.account.findFirst({
+                where: { id: customerId, tenantId },
+                select: { ocrPrompt: true },
+              })
+            : null,
         ]);
         if (tenantRes && tenantRes.plan === 'STARTER') {
           return {
@@ -91,6 +101,9 @@ export class RollsController {
         fabricTypes = fabricCards.map((c) => c.fabricType);
         tenantColors = rollColors.map((r) => r.color).filter(Boolean);
         tenant = tenantRes;
+        if (customerRes?.ocrPrompt) {
+          customerOcrPrompt = customerRes.ocrPrompt.trim();
+        }
       }
 
       console.log(
@@ -113,11 +126,13 @@ export class RollsController {
       if (tenantKey) {
         formData.append('gemini_api_key', tenantKey.trim());
       }
-      const tenantPrompt = tenant?.geminiPrompt?.trim() ?? '';
-      if (tenantPrompt) {
-        formData.append('custom_prompt', tenantPrompt);
+      
+      // Müşteriye özel prompt varsa öncelikli olarak onu, yoksa genel tenant promptunu kullan
+      const finalPrompt = customerOcrPrompt || tenant?.geminiPrompt?.trim() || '';
+      if (finalPrompt) {
+        formData.append('custom_prompt', finalPrompt);
       }
-      console.log('[doOcr] Blob, fabric_types ve color_list oluşturuldu.');
+      console.log('[doOcr] Blob, fabric_types ve color_list oluşturuldu. Prompt:', finalPrompt ? 'Özel Prompt Mevcut' : 'Varsayılan');
 
       const ocrUrl = process.env.OCR_SERVICE_URL || 'http://127.0.0.1:8000/ocr';
       console.log('[doOcr] OCR Servisine istek atılıyor:', ocrUrl);

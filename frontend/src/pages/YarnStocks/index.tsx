@@ -118,6 +118,9 @@ const YarnStocks: React.FC = () => {
       const compressed = await compressImage(blob);
       const formData = new FormData();
       formData.append('file', compressed, fileName.endsWith('.webp') ? fileName : `${fileName}.webp`);
+      if (formValues.supplierId) {
+        formData.append('supplierId', formValues.supplierId);
+      }
 
       const response = await apiClient.post('/yarn-stocks/ocr', formData, {
         headers: {
