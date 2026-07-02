@@ -136,6 +136,7 @@ const Login: React.FC = () => {
           <div className="rounded-md space-y-4">
             <div className="space-y-1">
               <label 
+                htmlFor="login-email"
                 style={{ color: '#94a3b8' }}
                 className="text-[11px] font-bold uppercase tracking-wider block"
               >
@@ -150,6 +151,8 @@ const Login: React.FC = () => {
                 </span>
                 <input
                   type="email"
+                  id="login-email"
+                  name="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -166,6 +169,7 @@ const Login: React.FC = () => {
 
             <div className="space-y-1">
               <label 
+                htmlFor="login-password"
                 style={{ color: '#94a3b8' }}
                 className="text-[11px] font-bold uppercase tracking-wider block"
               >
@@ -180,6 +184,8 @@ const Login: React.FC = () => {
                 </span>
                 <input
                   type="password"
+                  id="login-password"
+                  name="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

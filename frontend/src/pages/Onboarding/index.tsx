@@ -76,7 +76,7 @@ const Onboarding: React.FC = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              <label htmlFor="onboarding-name" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Adınız Soyadınız
               </label>
               <div className="relative">
@@ -85,6 +85,8 @@ const Onboarding: React.FC = () => {
                 </span>
                 <input
                   type="text"
+                  id="onboarding-name"
+                  name="name"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -95,7 +97,7 @@ const Onboarding: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              <label htmlFor="onboarding-tenant-name" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Fabrika / Şirket Ünvanı
               </label>
               <div className="relative">
@@ -104,6 +106,8 @@ const Onboarding: React.FC = () => {
                 </span>
                 <input
                   type="text"
+                  id="onboarding-tenant-name"
+                  name="tenantName"
                   required
                   value={tenantName}
                   onChange={(e) => setTenantName(e.target.value)}

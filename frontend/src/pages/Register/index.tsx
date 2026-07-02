@@ -132,9 +132,9 @@ const Register: React.FC = () => {
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md space-y-4">
-            {/* E-posta */}
+             {/* E-posta */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
+              <label htmlFor="register-email" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
                 E-posta Adresi
               </label>
               <div className="relative">
@@ -143,6 +143,8 @@ const Register: React.FC = () => {
                 </span>
                 <input
                   type="email"
+                  id="register-email"
+                  name="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -154,7 +156,7 @@ const Register: React.FC = () => {
 
             {/* Şifre */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
+              <label htmlFor="register-password" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
                 Şifre (Min 6 Karakter)
               </label>
               <div className="relative">
@@ -163,6 +165,8 @@ const Register: React.FC = () => {
                 </span>
                 <input
                   type="password"
+                  id="register-password"
+                  name="password"
                   required
                   minLength={6}
                   value={password}
@@ -175,7 +179,7 @@ const Register: React.FC = () => {
 
             {/* Davetiye Kodu */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
+              <label htmlFor="register-invite" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
                 Davetiye Kodu
               </label>
               <div className="relative">
@@ -184,6 +188,8 @@ const Register: React.FC = () => {
                 </span>
                 <input
                   type="text"
+                  id="register-invite"
+                  name="inviteCode"
                   required
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value)}
