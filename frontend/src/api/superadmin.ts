@@ -22,6 +22,7 @@ export interface Tenant {
   logoUrl: string | null;
   geminiApiKey: string | null;
   geminiPrompt: string | null;
+  geminiYarnPrompt: string | null;
   plan: string;
   createdAt: string;
   users: TenantUser[];
@@ -87,7 +88,7 @@ export const superAdminApi = {
     apiClient.post(`/settings/super/tenants/${tenantId}/users`, data),
 
   // Tenant settings (geminiApiKey etc.)
-  updateTenantSettings: (tenantId: string, data: { geminiApiKey: string; geminiPrompt?: string }): Promise<{ data: { success: boolean } }> =>
+  updateTenantSettings: (tenantId: string, data: { geminiApiKey: string; geminiPrompt?: string; geminiYarnPrompt?: string }): Promise<{ data: { success: boolean } }> =>
     apiClient.patch(`/settings/super/tenants/${tenantId}/settings`, data),
 
   // Invites

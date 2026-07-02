@@ -223,6 +223,7 @@ model Tenant {
   logoUrl      String?   @map("logo_url")
   geminiApiKey String?   @map("gemini_api_key")
   geminiPrompt String?   @map("gemini_prompt")
+  geminiYarnPrompt String? @map("gemini_yarn_prompt")
   plan         String    @default("STARTER")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")

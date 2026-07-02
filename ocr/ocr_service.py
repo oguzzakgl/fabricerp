@@ -68,6 +68,14 @@ class FabricOcrResult(BaseModel):
     quality: str = Field(description="Kumaş kalitesi (varsayılan olarak '1'). Eğer bulunamazsa '1'.")
     barcodeNumber: str = Field(description="Barkod numarası veya benzersiz etiket/top numarası (Örn: IRS-2026-00001, 100234, K-1234). Eğer bulunamazsa boş string.")
 
+class YarnOcrResult(BaseModel):
+    yarnType: str = Field(description="İplik tipi/adı (Örn: Ring, Open-End, Karde, Penye, Polyester, Karışım, Pamuk vb.). En uygun iplik tipini belirle.")
+    neNumber: str = Field(description="İplik numarası/kalınlığı (Örn: 30/1, 20/2, 150 Denye, 75 Denye vb.). Bulunamazsa boş string.")
+    color: str = Field(description="İplik rengi (Örn: Ekru, Siyah, Lacivert, Kırmızı vb.). Bulunamazsa boş string.")
+    colorCode: str = Field(description="İplik renk kodu (Örn: 703, 104 vb.). Bulunamazsa boş string.")
+    lotNumber: str = Field(description="İplik lot numarası veya parti numarası (Örn: 2406-A, LOT-1234 vb.). Bulunamazsa boş string.")
+    initialKg: float = Field(description="Kilogram cinsinden iplik net ağırlığı (ondalıklı sayı, Örn: 25.4, 100.0). Bulunamazsa 0.0.")
+
 # PaddleOCR Lazy-Loading yapısı
 _ocr_model = None
 
@@ -593,6 +601,113 @@ async def do_ocr(
     }
     print("FastAPI: PaddleOCR Fallback Sonucu:", res)
     return res
+
+@app.post("/ocr/yarn")
+async def do_ocr_yarn(
+    file: UploadFile = File(...), 
+    gemini_api_key: Optional[str] = Form(None), 
+    color_list: Optional[str] = Form(None),
+    custom_prompt: Optional[str] = Form(None)
+):
+    filename = file.filename or ""
+    print(f"FastAPI: Yarn OCR Istek alindi. Dosya adi: {filename}")
+    original_contents = await file.read()
+    print(f"FastAPI: Dosya okundu. Boyut: {len(original_contents)} byte")
+    
+    gemini_contents = original_contents
+    try:
+        nparr = np.frombuffer(original_contents, np.uint8)
+        img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img_np is not None:
+            img_resized = resize_if_needed(img_np, target_width=500)
+            img_gamma = apply_gamma_correction(img_resized, gamma=0.8)
+            gray = cv2.cvtColor(img_gamma, cv2.COLOR_BGR2GRAY)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            gray_clahe = clahe.apply(gray)
+            kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+            sharpened = cv2.filter2D(gray_clahe, -1, kernel)
+            success, encoded_img = cv2.imencode('.webp', sharpened, [cv2.IMWRITE_WEBP_QUALITY, 65])
+            if success:
+                gemini_contents = encoded_img.tobytes()
+                print(f"FastAPI: Yarn Görsel optimize edildi. Boyut: {len(gemini_contents)} byte")
+    except Exception as img_err:
+        print(f"UYARI: Görsel optimizasyonu yapılamadı: {img_err}")
+    
+    raw_key = gemini_api_key.strip() if gemini_api_key else ""
+    if raw_key in ["", "null", "undefined"]:
+        raw_key = ""
+    apiKey = raw_key if raw_key else os.environ.get("GEMINI_API_KEY")
+    ocr_engine = os.environ.get("OCR_ENGINE", "gemini").lower()
+    
+    color_list_instruction = ""
+    if color_list:
+        try:
+            colors = json.loads(color_list)
+            if colors and isinstance(colors, list):
+                color_list_instruction = f" Renk kodu veya adı için KESİNLİKLE şu listedeki değerlerden birini seçmeye çalış (fuzzy/yakın veya birebir eşleştir): {', '.join(map(str, colors))}."
+        except Exception as e:
+            print("color_list parse hatasi:", e)
+
+    if ocr_engine == "gemini" and apiKey:
+        try:
+            if not re.match(r"^(AIzaSy|AQ\.)[a-zA-Z0-9_.-]+$", apiKey):
+                raise ValueError("Gecersiz Gemini API anahtari formati.")
+                
+            print("FastAPI: Gemini Multimodal Yarn analizi basliyor...")
+            model = get_gemini_model(apiKey)
+            
+            sanitized_custom_prompt = custom_prompt.strip() if custom_prompt else ""
+            if sanitized_custom_prompt in ["", "null", "undefined"]:
+                sanitized_custom_prompt = ""
+                
+            if sanitized_custom_prompt:
+                instruction = sanitized_custom_prompt
+                if color_list_instruction:
+                    instruction += f"\n{color_list_instruction}"
+            else:
+                instruction = (
+                    "Verilen iplik etiketi görselindeki bilgileri şemaya uygun olarak Türkçe ayıkla. "
+                    "İplik lot numarasını (lotNumber), iplik tipini/adını (yarnType), kalınlığını/numarasını (neNumber), net ağırlığını (initialKg) ve rengini ayıkla. "
+                    "Not: Görsel tepe açılı veya ışık yansıması nedeniyle gölgeli olabilir. "
+                    f"{color_list_instruction}"
+                )
+
+            response = await model.generate_content_async(
+                [
+                    {"mime_type": "image/webp", "data": gemini_contents},
+                    instruction
+                ],
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=YarnOcrResult,
+                    temperature=0.0,
+                ),
+                request_options={"timeout": 30.0}
+            )
+            result_data = json.loads(response.text)
+            print("FastAPI: Gemini Yarn Analizi Basarili:", result_data)
+            return {
+                "yarnType": result_data.get("yarnType") or "Bilinmeyen İplik",
+                "neNumber": str(result_data.get("neNumber") or ""),
+                "color": result_data.get("color") or "",
+                "colorCode": str(result_data.get("colorCode") or ""),
+                "lotNumber": str(result_data.get("lotNumber") or ""),
+                "initialKg": float(result_data.get("initialKg") or 0.0),
+                "rawText": f"Gemini API Analiz Sonucu\n{response.text}"
+            }
+        except Exception as e:
+            print(f"HATA: Gemini API analizi sirasinda hata olustu: {e}")
+            
+    return {
+        "yarnType": "Bilinmeyen İplik",
+        "neNumber": "",
+        "color": "",
+        "colorCode": "",
+        "lotNumber": "",
+        "initialKg": 0.0,
+        "rawText": "",
+        "error": "Gemini API anahtarı geçersiz veya analiz sırasında hata oluştu."
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

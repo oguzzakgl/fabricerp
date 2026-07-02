@@ -49,6 +49,10 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   geminiPrompt?: string;
+
+  @IsOptional()
+  @IsString()
+  geminiYarnPrompt?: string;
 }
 
 export class CreateUserDto {
@@ -107,6 +111,8 @@ export class SettingsService {
         (tenant as { geminiApiKey?: string | null }).geminiApiKey || '',
       geminiPrompt:
         (tenant as { geminiPrompt?: string | null }).geminiPrompt || '',
+      geminiYarnPrompt:
+        (tenant as { geminiYarnPrompt?: string | null }).geminiYarnPrompt || '',
     };
   }
 
@@ -152,6 +158,7 @@ export class SettingsService {
         logoUrl: data.logoUrl,
         geminiApiKey: data.geminiApiKey,
         geminiPrompt: data.geminiPrompt,
+        geminiYarnPrompt: data.geminiYarnPrompt,
       },
     });
 
@@ -169,6 +176,9 @@ export class SettingsService {
         (updated as { geminiApiKey?: string | null }).geminiApiKey || '',
       geminiPrompt:
         (updated as { geminiPrompt?: string | null }).geminiPrompt || '',
+      geminiYarnPrompt:
+        (updated as { geminiYarnPrompt?: string | null }).geminiYarnPrompt ||
+        '',
     };
   }
 
@@ -588,7 +598,11 @@ export class SettingsService {
   async superUpdateTenantSettings(
     activeUserId: string,
     tenantId: string,
-    data: { geminiApiKey: string; geminiPrompt?: string },
+    data: {
+      geminiApiKey: string;
+      geminiPrompt?: string;
+      geminiYarnPrompt?: string;
+    },
   ) {
     const activeUser = await this.prisma.user.findUnique({
       where: { id: activeUserId },
@@ -609,6 +623,7 @@ export class SettingsService {
       data: {
         geminiApiKey: data.geminiApiKey,
         geminiPrompt: data.geminiPrompt,
+        geminiYarnPrompt: data.geminiYarnPrompt,
       },
     });
     return { success: true };

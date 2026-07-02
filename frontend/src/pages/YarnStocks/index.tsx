@@ -58,6 +58,108 @@ const YarnStocks: React.FC = () => {
     unitPrice: 0,
   });
 
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const compressImage = (fileOrBlob: Blob | File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(fileOrBlob);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const maxDim = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(fileOrBlob);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                resolve(fileOrBlob);
+              }
+            },
+            'image/webp',
+            0.70
+          );
+        };
+        img.onerror = () => resolve(fileOrBlob);
+      };
+      reader.onerror = () => resolve(fileOrBlob);
+    });
+  };
+
+  const processOcrBlob = async (blob: Blob | File, fileName: string) => {
+    setOcrLoading(true);
+    try {
+      const compressed = await compressImage(blob);
+      const formData = new FormData();
+      formData.append('file', compressed, fileName.endsWith('.webp') ? fileName : `${fileName}.webp`);
+
+      const response = await apiClient.post('/yarn-stocks/ocr', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const ocrData = response.data;
+      if (ocrData.error) {
+        throw new Error(ocrData.error);
+      }
+
+      setFormValues((prev) => ({
+        ...prev,
+        yarnType: ocrData.yarnType || prev.yarnType,
+        neNumber: ocrData.neNumber || prev.neNumber,
+        color: ocrData.color || prev.color,
+        colorCode: ocrData.colorCode || prev.colorCode,
+        lotNumber: ocrData.lotNumber || prev.lotNumber,
+        initialKg: Number(ocrData.initialKg) || prev.initialKg,
+      }));
+
+      alert('Etiket başarıyla okundu ve form dolduruldu!');
+    } catch (err: unknown) {
+      console.error('OCR Hatası:', err);
+      const error = err as Error;
+      alert(error.message || 'OCR analizi sırasında hata oluştu.');
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  const handleFileUploadAndOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await processOcrBlob(file, file.name);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const fetchYarnStocks = useCallback(async () => {
     setLoading(true);
     try {
@@ -331,6 +433,43 @@ const YarnStocks: React.FC = () => {
             </div>
             
             <form onSubmit={handleSubmit} className="p-kenar-payi grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="col-span-1 md:col-span-2">
+                <div className="p-4 rounded-xl border border-dashed border-bilgi-mavisi/40 bg-bilgi-mavisi/5 flex flex-col items-center justify-center gap-3 relative overflow-hidden transition-all hover:bg-bilgi-mavisi/10">
+                  {ocrLoading ? (
+                    <div className="flex flex-col items-center gap-2 py-2">
+                      <span className="material-symbols-outlined animate-spin text-bilgi-mavisi text-3xl">progress_activity</span>
+                      <span className="text-govde-metin font-semibold text-bilgi-mavisi animate-pulse">Etiket yapay zeka ile analiz ediliyor...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-bilgi-mavisi text-2xl">photo_camera</span>
+                        <span className="text-govde-metin font-bold text-on-surface">Etiket Fotoğrafı Okutarak Otomatik Doldur</span>
+                      </div>
+                      <p className="text-kucuk-not text-on-surface-variant text-center max-w-md">
+                        Çuval, palet veya bobin etiketinin fotoğrafını yükleyin/çekin. AI; lot no, ağırlık, iplik tipi ve rengi otomatik dolduracaktır.
+                      </p>
+                      <button
+                        type="button"
+                        id="yarn-ocr-scan-btn"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-bilgi-mavisi text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-secondary active:scale-95 transition-all flex items-center gap-2 shadow-xs cursor-pointer animate-pulse"
+                      >
+                        <span className="material-symbols-outlined text-sm">cloud_upload</span>
+                        Fotoğraf Yükle veya Kamerayı Aç
+                      </button>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        onChange={handleFileUploadAndOcr}
+                        className="hidden"
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+
               <div className="col-span-1">
                 <label className="block text-kucuk-not font-semibold text-on-surface-variant mb-1">Lot Numarası</label>
                 <input 

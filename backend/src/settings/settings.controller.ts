@@ -158,7 +158,12 @@ export class SettingsController {
   superUpdateTenantSettings(
     @Req() req: RequestWithUser,
     @Param('tenantId') tenantId: string,
-    @Body() body: { geminiApiKey: string; geminiPrompt?: string },
+    @Body()
+    body: {
+      geminiApiKey: string;
+      geminiPrompt?: string;
+      geminiYarnPrompt?: string;
+    },
   ) {
     return this.settingsService.superUpdateTenantSettings(
       req.user.userId,

@@ -17,6 +17,7 @@ const TenantDetail: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [yarnPrompt, setYarnPrompt] = useState('');
   const [savingApi, setSavingApi] = useState(false);
 
   const [prevId, setPrevId] = useState(id);
@@ -32,6 +33,7 @@ const TenantDetail: React.FC = () => {
       setTenant(res.data);
       setApiKey(res.data?.geminiApiKey || '');
       setPrompt(res.data?.geminiPrompt || '');
+      setYarnPrompt(res.data?.geminiYarnPrompt || '');
     } catch (e) {
       console.error(e);
     } finally {
@@ -56,7 +58,11 @@ const TenantDetail: React.FC = () => {
     if (!id) return;
     setSavingApi(true);
     try {
-      await superAdminApi.updateTenantSettings(id, { geminiApiKey: apiKey, geminiPrompt: prompt });
+      await superAdminApi.updateTenantSettings(id, {
+        geminiApiKey: apiKey,
+        geminiPrompt: prompt,
+        geminiYarnPrompt: yarnPrompt,
+      });
       alert('Ayarlar kaydedildi.');
     } catch (e: unknown) {
       alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Hata.');
@@ -200,15 +206,26 @@ const TenantDetail: React.FC = () => {
                 <p className="text-[10px] text-on-surface-variant">OCR özelliği için Google Gemini API anahtarı</p>
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase block">Özel OCR Promptu (Talimatı)</label>
+                <label className="text-[11px] font-bold text-on-surface-variant uppercase block">Özel Kumaş OCR Promptu (Talimatı)</label>
                 <textarea
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                   placeholder={`ŞABLON:\n- fabricType (Kumaş Türü): [Asıl kumaş cinsini bul]\n- colorCode (Renk Kodu): [1-13 arası tam sayı]\n- lengthM (Metre / Uzunluk): [Uzunluk değeri]\n- netWeightKg (Net Ağırlık / Kg): [Net ağırlık değeri]\n- quality (Kalite Sınıfı): [Genellikle 1]\n- barcodeNumber (Barkod / Top No): [Barkod veya Top No]\n\nÖrn: 1. fabricType: 'KUMAŞ ADI' yerine 'KALİTE' başlığının yanındakini oku...`}
-                  rows={10}
+                  rows={6}
                   className="w-full px-3 py-2 bg-arka-plan-gri border border-outline-variant rounded text-sm outline-none focus:ring-1 focus:ring-bilgi-mavisi resize-y"
                 />
-                <p className="text-[10px] text-on-surface-variant">Müşterinin etiketlerine özel OCR promptunu buradan düzenleyebilirsiniz. Boş bırakılırsa varsayılan prompt kullanılır.</p>
+                <p className="text-[10px] text-on-surface-variant">Müşterinin kumaş etiketlerine özel OCR promptunu buradan düzenleyebilirsiniz. Boş bırakılırsa varsayılan prompt kullanılır.</p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-on-surface-variant uppercase block">Özel İplik OCR Promptu (Talimatı)</label>
+                <textarea
+                  value={yarnPrompt}
+                  onChange={e => setYarnPrompt(e.target.value)}
+                  placeholder={`ŞABLON:\n- yarnType (İplik Tipi): [Asıl iplik tipini bul]\n- neNumber (Ne Numarası): [İplik kalınlık numarası]\n- color (Renk): [Renk adı]\n- colorCode (Renk Kodu): [Renk kodu]\n- lotNumber (Lot Numarası): [Lot veya parti numarası]\n- initialKg (Ağırlık / Kg): [Net ağırlık değeri]\n\nÖrn: 1. Tedarikçi A ise lot numarasını barkodun yanından oku...`}
+                  rows={6}
+                  className="w-full px-3 py-2 bg-arka-plan-gri border border-outline-variant rounded text-sm outline-none focus:ring-1 focus:ring-bilgi-mavisi resize-y"
+                />
+                <p className="text-[10px] text-on-surface-variant">Müşterinin iplik etiketlerine özel OCR promptunu buradan düzenleyebilirsiniz. Boş bırakılırsa varsayılan prompt kullanılır.</p>
               </div>
               <button
                 onClick={handleSaveApiKey}
