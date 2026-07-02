@@ -78,13 +78,21 @@ p {
 
 /* Navigation */
 .navbar-wrapper {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 1000;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   background: rgba(10, 15, 30, 0.85);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.navbar-spacer {
+  height: 80px;
+  width: 100%;
+  display: block;
 }
 
 .navbar {

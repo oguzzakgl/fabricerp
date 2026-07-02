@@ -68,6 +68,7 @@ function getNavbarHtml() {
         </div>
       </nav>
     </div>
+    <div class="navbar-spacer"></div>
   `;
 }
 
