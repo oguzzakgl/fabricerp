@@ -105,67 +105,7 @@ const Finance: React.FC = () => {
     };
   }, []);
 
-  const seedDatabaseDocs = async (customer: Account, existingDocsCount: number) => {
-    if (existingDocsCount > 0) return;
-    try {
-      // Create Doc 1: CK-90212 (Pending)
-      await apiClient.post('/finance', {
-        accountId: customer.id,
-        type: 'CHECK',
-        direction: 'RECEIVABLE',
-        amount: 125000.0,
-        dueDate: '2026-06-30',
-        referenceNumber: 'CK-90212',
-        bankName: 'Garanti BBVA',
-        notes: 'Müşteri çeki - Global Tekstil',
-      });
 
-      // Create Doc 2: SN-1104 (Collected)
-      const res2 = await apiClient.post('/finance', {
-        accountId: customer.id,
-        type: 'BILL_OF_EXCHANGE',
-        direction: 'RECEIVABLE',
-        amount: 45000.0,
-        dueDate: '2026-06-15',
-        referenceNumber: 'SN-1104',
-        bankName: 'Akbank',
-        notes: 'Müşteri senedi - Modasente',
-      });
-      await apiClient.put(`/finance/${res2.data.id}`, {
-        status: 'collected',
-        collectedAt: new Date().toISOString(),
-      });
-
-      // Create Doc 3: CK-90215 (Endorsed)
-      const res3 = await apiClient.post('/finance', {
-        accountId: customer.id,
-        type: 'CHECK',
-        direction: 'RECEIVABLE',
-        amount: 250000.0,
-        dueDate: '2026-07-10',
-        referenceNumber: 'CK-90215',
-        bankName: 'İş Bankası',
-        notes: 'Müşteri çeki - Global Tekstil (Ciro Edildi)',
-      });
-      await apiClient.put(`/finance/${res3.data.id}`, {
-        status: 'endorsed',
-      });
-
-      // Create Doc 4: CK-90220 (Pending)
-      await apiClient.post('/finance', {
-        accountId: customer.id,
-        type: 'CHECK',
-        direction: 'RECEIVABLE',
-        amount: 62900.0,
-        dueDate: '2026-06-05',
-        referenceNumber: 'CK-90220',
-        bankName: 'Yapı Kredi',
-        notes: 'Müşteri çeki - Modasente',
-      });
-    } catch (err) {
-      console.error('Seeding financial transactions failed:', err);
-    }
-  };
 
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
@@ -196,12 +136,7 @@ const Finance: React.FC = () => {
         }
 
         // Fetch documents
-        const count = await fetchDocuments();
-        if (count === 0 && filtered.length > 0 && active) {
-          // Seed DB
-          await seedDatabaseDocs(filtered[0], count);
-          await fetchDocuments();
-        }
+        await fetchDocuments();
       } catch (err) {
         console.error(err);
       } finally {
