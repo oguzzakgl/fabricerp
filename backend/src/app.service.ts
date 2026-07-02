@@ -133,6 +133,71 @@ export class AppService {
       });
     }
 
+    // 7. Toplam Gelir & Gider (tüm zamanlar)
+    const allInvoices = await this.prisma.invoice.aggregate({
+      where: { tenantId },
+      _sum: { totalAmount: true },
+    });
+    const totalIncome = Number(allInvoices._sum.totalAmount || 0);
+
+    const allYarnPurchases = await this.prisma.yarnStock.findMany({
+      where: { tenantId },
+      select: { initialKg: true, unitPrice: true },
+    });
+    const totalExpense = allYarnPurchases.reduce(
+      (sum, ys) => sum + Number(ys.initialKg) * Number(ys.unitPrice),
+      0,
+    );
+
+    // 8. Toplam Alacak (müşteri net bakiyeleri toplamı - pozitif)
+    const customerAccounts = await this.prisma.account.findMany({
+      where: { tenantId, type: { in: ['CUSTOMER', 'BOTH'] } },
+      include: {
+        orders: { select: { totalAmount: true, status: true } },
+        financialTransactions: {
+          where: { status: { notIn: ['cancelled', 'bounced'] } },
+          select: { amount: true, direction: true, currency: true, convertedAmount: true, targetCurrency: true },
+        },
+      },
+    });
+
+    let totalReceivable = 0;
+    for (const acc of customerAccounts) {
+      const orderTotal = acc.orders
+        .filter((o: any) => o.status !== 'cancelled' && o.status !== 'draft')
+        .reduce((s: number, o: any) => s + Number(o.totalAmount || 0), 0);
+      const received = acc.financialTransactions
+        .filter((tx: any) => tx.direction === 'RECEIVABLE')
+        .reduce((s: number, tx: any) => s + Number(tx.amount || 0), 0);
+      const net = orderTotal - received;
+      if (net > 0) totalReceivable += net;
+    }
+
+    // 9. Toplam Verecek (tedarikçi net borçları toplamı - pozitif)
+    const supplierAccounts = await this.prisma.account.findMany({
+      where: { tenantId, type: { in: ['SUPPLIER', 'BOTH'] } },
+      include: {
+        yarnStocks: { select: { initialKg: true, unitPrice: true } },
+        financialTransactions: {
+          where: { status: { notIn: ['cancelled', 'bounced'] } },
+          select: { amount: true, direction: true },
+        },
+      },
+    });
+
+    let totalPayable = 0;
+    for (const acc of supplierAccounts) {
+      const purchaseTotal = (acc.yarnStocks || []).reduce(
+        (s: number, ys: any) => s + Number(ys.initialKg) * Number(ys.unitPrice),
+        0,
+      );
+      const paid = acc.financialTransactions
+        .filter((tx: any) => tx.direction === 'PAYABLE')
+        .reduce((s: number, tx: any) => s + Number(tx.amount || 0), 0);
+      const net = purchaseTotal - paid;
+      if (net > 0) totalPayable += net;
+    }
+
     return {
       cariCount,
       yarnTotalKg,
@@ -141,6 +206,10 @@ export class AppService {
       criticalStocks,
       urgentPayments,
       chartData,
+      totalIncome,
+      totalExpense,
+      totalReceivable,
+      totalPayable,
     };
   }
 }

@@ -38,6 +38,10 @@ const Dashboard: React.FC = () => {
   const [criticalStocks, setCriticalStocks] = useState<CriticalStockItem[]>([]);
   const [urgentPayments, setUrgentPayments] = useState<UrgentPaymentItem[]>([]);
   const [chartData, setChartData] = useState<ChartItem[]>([]);
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [totalExpense, setTotalExpense] = useState(0);
+  const [totalReceivable, setTotalReceivable] = useState(0);
+  const [totalPayable, setTotalPayable] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -55,6 +59,10 @@ const Dashboard: React.FC = () => {
           setCriticalStocks(res.data.criticalStocks);
           setUrgentPayments(res.data.urgentPayments);
           setChartData(res.data.chartData);
+          setTotalIncome(res.data.totalIncome || 0);
+          setTotalExpense(res.data.totalExpense || 0);
+          setTotalReceivable(res.data.totalReceivable || 0);
+          setTotalPayable(res.data.totalPayable || 0);
         }
       } catch (err) {
         console.error('Dashboard istatistikleri yüklenemedi:', err);
@@ -241,6 +249,69 @@ const Dashboard: React.FC = () => {
           <h3 className="text-ust-baslik-md font-bold mt-1">
             {criticalStocks.length > 0 ? `${criticalStocks.length} Ürün Azalıyor` : 'Stoklar Normal'}
           </h3>
+        </div>
+      </div>
+
+      {/* GELİR / GİDER / ALACAK / VERECEK CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-kenar-payi mb-kenar-payi">
+        {/* Toplam Gelir */}
+        <div className="bg-surface-container-lowest p-standart-padding rounded-lg border border-basari-yesili/20 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-2">
+            <div className="p-2 bg-basari-yesili/10 text-basari-yesili rounded-lg">
+              <span className="material-symbols-outlined">trending_up</span>
+            </div>
+            <span className="text-basari-yesili text-kucuk-not font-semibold">Gelir</span>
+          </div>
+          <p className="text-on-surface-variant text-kucuk-not font-medium">Toplam Gelir</p>
+          <h3 className="text-ust-baslik-md font-bold mt-1 text-basari-yesili">
+            ₺{totalIncome.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </h3>
+          <p className="text-kucuk-not text-on-surface-variant mt-1">Tüm faturalar toplamı</p>
+        </div>
+
+        {/* Toplam Gider */}
+        <div className="bg-surface-container-lowest p-standart-padding rounded-lg border border-hata-kirmizisi/20 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-2">
+            <div className="p-2 bg-hata-kirmizisi/10 text-hata-kirmizisi rounded-lg">
+              <span className="material-symbols-outlined">trending_down</span>
+            </div>
+            <span className="text-hata-kirmizisi text-kucuk-not font-semibold">Gider</span>
+          </div>
+          <p className="text-on-surface-variant text-kucuk-not font-medium">Toplam Gider</p>
+          <h3 className="text-ust-baslik-md font-bold mt-1 text-hata-kirmizisi">
+            ₺{totalExpense.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </h3>
+          <p className="text-kucuk-not text-on-surface-variant mt-1">Tüm iplik alımları toplamı</p>
+        </div>
+
+        {/* Toplam Alacak */}
+        <div className="bg-surface-container-lowest p-standart-padding rounded-lg border border-bilgi-mavisi/20 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-2">
+            <div className="p-2 bg-bilgi-mavisi/10 text-bilgi-mavisi rounded-lg">
+              <span className="material-symbols-outlined">account_balance</span>
+            </div>
+            <span className="text-bilgi-mavisi text-kucuk-not font-semibold">Alacak</span>
+          </div>
+          <p className="text-on-surface-variant text-kucuk-not font-medium">Toplam Alacak</p>
+          <h3 className="text-ust-baslik-md font-bold mt-1 text-bilgi-mavisi">
+            ₺{totalReceivable.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </h3>
+          <p className="text-kucuk-not text-on-surface-variant mt-1">Müşterilerden tahsil edilecek</p>
+        </div>
+
+        {/* Toplam Verecek */}
+        <div className="bg-surface-container-lowest p-standart-padding rounded-lg border border-uyari-kehribar/20 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-2">
+            <div className="p-2 bg-uyari-kehribar/10 text-uyari-kehribar rounded-lg">
+              <span className="material-symbols-outlined">payments</span>
+            </div>
+            <span className="text-uyari-kehribar text-kucuk-not font-semibold">Verecek</span>
+          </div>
+          <p className="text-on-surface-variant text-kucuk-not font-medium">Toplam Verecek</p>
+          <h3 className="text-ust-baslik-md font-bold mt-1 text-uyari-kehribar">
+            ₺{totalPayable.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </h3>
+          <p className="text-kucuk-not text-on-surface-variant mt-1">Tedarikçilere ödenecek</p>
         </div>
       </div>
 
