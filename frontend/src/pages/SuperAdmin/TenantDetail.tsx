@@ -201,6 +201,7 @@ const TenantDetail: React.FC = () => {
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
                   placeholder="AIzaSyD-..."
+                  autoComplete="new-password"
                   className="w-full px-3 py-2 bg-arka-plan-gri border border-outline-variant rounded text-sm font-mono outline-none focus:ring-1 focus:ring-bilgi-mavisi"
                 />
                 <p className="text-[10px] text-on-surface-variant">OCR özelliği için Google Gemini API anahtarı</p>
