@@ -77,11 +77,21 @@ p {
 }
 
 /* Navigation */
+.navbar-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(10, 15, 30, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .navbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 2rem;
+  padding: 1.25rem 2rem;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;

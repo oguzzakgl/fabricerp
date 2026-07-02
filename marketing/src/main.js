@@ -54,18 +54,20 @@ function navigateTo(path) {
 // ----------------------------------------------------
 function getNavbarHtml() {
   return `
-    <nav class="navbar">
-      <a href="/" data-link class="logo">
-        <span class="material-symbols-outlined icon">layers</span>
-        <span>Fabricore</span>
-      </a>
-      <div class="nav-links">
-        <a href="#features">Özellikler</a>
-        <a href="#pricing">Fiyatlandırma</a>
-        <a href="${ERP_APP_URL}" class="btn btn-secondary">Giriş Yap</a>
-        <a href="/register" data-link class="btn btn-accent">Kayıt Ol</a>
-      </div>
-    </nav>
+    <div class="navbar-wrapper">
+      <nav class="navbar">
+        <a href="/" data-link class="logo">
+          <span class="material-symbols-outlined icon">layers</span>
+          <span>Fabricore</span>
+        </a>
+        <div class="nav-links">
+          <a href="/#features">Özellikler</a>
+          <a href="/#pricing">Fiyatlandırma</a>
+          <a href="${ERP_APP_URL}" class="btn btn-secondary">Giriş Yap</a>
+          <a href="/register" data-link class="btn btn-accent">Kayıt Ol</a>
+        </div>
+      </nav>
+    </div>
   `;
 }
 
