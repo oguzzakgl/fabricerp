@@ -20,6 +20,7 @@ import TenantDetail from './pages/SuperAdmin/TenantDetail';
 import SuperUsers from './pages/SuperAdmin/Users';
 import Invites from './pages/SuperAdmin/Invites';
 import Settings from './pages/Settings';
+import Register from './pages/Register';
 
 import Login from './pages/Login';
 
@@ -30,7 +31,7 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Navigate to="/login" replace />} />
+          <Route path="/register" element={<Register />} />
 
           {/* Protected App Routes */}
           <Route element={<ProtectedRoute />}>
