@@ -138,23 +138,23 @@ function renderLanding() {
               <div class="mockup-table-row header">
                 <span>Top No</span>
                 <span>Kumaş Tipi</span>
-                <span>Renk</span>
+                <span class="hide-mobile">Renk</span>
                 <span>Metraj</span>
-                <span>Durum</span>
+                <span class="hide-mobile">Durum</span>
               </div>
               <div class="mockup-table-row">
                 <span class="font-mono text-accent">TOP-KM-938210</span>
                 <strong>RONA</strong>
-                <span>Renk 1 (Siyah)</span>
+                <span class="hide-mobile">Renk 1 (Siyah)</span>
                 <strong>104.2 mt</strong>
-                <span class="badge badge-success">Mevcut</span>
+                <span class="badge badge-success hide-mobile">Mevcut</span>
               </div>
               <div class="mockup-table-row">
                 <span class="font-mono text-accent">TOP-KM-427189</span>
                 <strong>CROC</strong>
-                <span>Renk 3 (Lacivert)</span>
+                <span class="hide-mobile">Renk 3 (Lacivert)</span>
                 <strong>88.5 mt</strong>
-                <span class="badge badge-success">Mevcut</span>
+                <span class="badge badge-success hide-mobile">Mevcut</span>
               </div>
             </div>
           </main>

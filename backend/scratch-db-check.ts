@@ -14,11 +14,11 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('--- ALL TENANTS ---');
-  const tenants = await prisma.tenant.findMany();
-  tenants.forEach((t) => {
+  console.log('--- CURRENT USERS ---');
+  const remaining = await prisma.user.findMany();
+  remaining.forEach((u) => {
     console.log(
-      `ID: ${t.id} | Name: ${t.name} | Key: ${t.geminiApiKey} | Length: ${t.geminiApiKey?.length}`,
+      `Email: ${u.email} | Role: ${u.role} | TenantId: ${u.tenantId}`,
     );
   });
 }

@@ -1066,4 +1066,54 @@ p {
     gap: 1rem;
     text-align: center;
   }
+
+  /* Custom mobile improvements */
+  .hide-mobile {
+    display: none;
+  }
+  
+  .mockup-table-row {
+    grid-template-columns: 1.5fr 1fr 1fr;
+  }
+  
+  .mockup-main {
+    padding: 1rem;
+  }
+  
+  .mockup-title-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .mockup-stat-card {
+    padding: 1rem;
+  }
+  
+  .rates-calculator-card {
+    padding: 1.25rem;
+  }
+  
+  .tab-content {
+    padding: 1.5rem;
+  }
+  
+  .faq-item {
+    padding: 1rem 1.25rem;
+  }
+  
+  .cta-banner {
+    padding: 3rem 1.5rem;
+  }
+  
+  .calc-inputs-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  
+  .calc-inputs-row .arrow {
+    text-align: center;
+    transform: rotate(90deg);
+  }
 }
